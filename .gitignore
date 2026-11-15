@@ -1,0 +1,5 @@
+# Build outputs: heatline.elf is attached to each GitHub release;
+# page_html.h is generated from index.html by make.
+heatline.elf
+page_html.h
+*.tmp
