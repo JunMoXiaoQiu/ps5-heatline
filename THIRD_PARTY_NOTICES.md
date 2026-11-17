@@ -9,6 +9,8 @@ licence asks for.
 | Component | Licence | What Heatline uses |
 |---|---|---|
 | [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk) (John Törnblom and contributors) | GPL-3.0-or-later (headers in `include/freebsd`: BSD) | The start-up and runtime code (`crt`) linked into every payload, and the headers. This is why `heatline.elf` as a whole is under the GPL. |
+| [SimpleFPS](https://github.com/khalifa007/SimpleFPS) by khalifa007 and [Common FPS for PS5](https://github.com/porhe911/Common-FPS-for-PS5) by porhe911 | GPL-3.0-or-later | The in-game overlay engine, vendored unmodified under `overlay/engine` (Common-FPS v1.2.1 @ `b7969fd` with SimpleFPS's `simplefps.patch`) and built as `libheatline_overlay.a`: ShellUI discovery, renderer injection and the Mono text renderer drawn over the game. Heatline adds only `overlay_api.cpp`, a static-library target, a single-line layout, and the change to source metrics from `fps.c` instead of the engine's own sampler. |
+| [shsrv](https://github.com/ps5-payload-dev/shsrv) (ps5-payload-dev) | GPL-3.0-or-later | `overlay/shsrv` (`pt.c`, `elfldr.c` and headers): the ptrace helpers the overlay injector uses to load the renderer into SceShellUI. |
 
 ## Ported or adapted code
 

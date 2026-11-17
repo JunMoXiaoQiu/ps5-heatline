@@ -35,13 +35,27 @@ page_html.h: index.html
 	  python3 -c 'import sys; d=open(sys.argv[1],"rb").read(); print("unsigned char index_html[] = {"); [print("  "+", ".join("0x%02x"%b for b in d[i:i+12])+",") for i in range(0,len(d),12)]; print("};"); print("unsigned int index_html_len = %d;"%len(d))' $< > $@.tmp; \
 	fi && test -s $@.tmp && mv $@.tmp $@
 
+# On-TV overlay engine (vendored SimpleFPS / Common-FPS), built as a static
+# library and linked into heatline.elf. See overlay/build_overlay.sh.
+OVERLAY_LIB := overlay/libheatline_overlay.a
+OVERLAY_SRCS := $(shell find overlay/engine/src overlay/engine/include overlay/engine/ps5/CMakeLists.txt overlay/shsrv -type f 2>/dev/null)
+
+# C++ runtime and extra system libs the overlay engine needs, on top of LDLIBS.
+OVERLAY_LDLIBS := -lSceNet -lSceSysmodule -lSceUserService -lSceLibcInternal -lc++ -lc++abi
+
+$(OVERLAY_LIB): $(OVERLAY_SRCS) overlay/build_overlay.sh
+	PS5_PAYLOAD_SDK=$(PS5_PAYLOAD_SDK) bash overlay/build_overlay.sh
+
 # every .c / .h here is a dependency, so a change to any of them rebuilds
-SRCS := main.c fps.c cpuload.c context.c storage.c sysinfo.c ntp.c fan.c selfstat.c app.c netlat.c display.c raw.c
-$(ELF): $(SRCS) $(wildcard *.h) page_html.h assets/param.json assets/icon0.png VERSION
-	$(CC) $(CFLAGS) -o $@ $(SRCS) $(LDLIBS)
+SRCS := main.c fps.c osd.c cpuload.c context.c storage.c sysinfo.c ntp.c fan.c selfstat.c app.c netlat.c display.c raw.c
+$(ELF): $(SRCS) $(wildcard *.h) page_html.h assets/param.json assets/icon0.png VERSION $(OVERLAY_LIB)
+	$(CC) $(CFLAGS) -o $@ $(SRCS) $(OVERLAY_LIB) $(LDLIBS) $(OVERLAY_LDLIBS)
 
 clean:
 	rm -f $(ELF)
+
+clean-overlay:
+	rm -rf overlay/build overlay/libheatline_overlay.a
 
 # Lists what still has to be filled in before a public release (developer
 # name, GitHub link, download URL) and checks that payloads.json has the
@@ -62,7 +76,7 @@ release-check: $(ELF)
 	else echo "release-check: fill in the TODO items above (see README, Release checklist)"; fi; \
 	exit $$status
 
-.PHONY: all clean test release-check
+.PHONY: all clean clean-overlay test release-check
 
 test: $(ELF)
 	$(PS5_DEPLOY) -h $(PS5_HOST) -p $(PS5_PORT) $(ELF)

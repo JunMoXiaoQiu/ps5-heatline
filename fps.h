@@ -25,6 +25,18 @@ int  fps_start(void);                 /* escalate + start thread; 0 on success *
 int  fps_json(char *buf, size_t size); /* writes "game":{...} (no trailing comma) */
 void fps_reset(void);
 void fps_set_more(int on);
+
+/* Current one-second FPS for the on-screen overlay (osd.c). Returns 1 and
+ * writes the rounded FPS to *fps while a game is running and a measurement
+ * exists; returns 0 otherwise (no game yet, or no first measurement). Cheap:
+ * just reads the last computed value under the lock, triggers no driver read. */
+int  fps_now_value(int *fps);
+
+/* Overlay metrics from Heatline's own sampler: current FPS plus the CapFrameX
+ * real-time average, 1% low (P1) and 0.2% low (P0.2). Returns 1 while a game
+ * runs; a metric still filling its window is written as -1. The in-game
+ * overlay draws these so it shares one source with the dashboard. */
+int  fps_overlay_metrics(int *fps, int *avg, int *p1, int *p02);
 int  fps_dce_raw(unsigned char out[0x60]);   /* one read for the raw view; 0 ok, -errno */
 void fps_game(char *id, size_t idn, char *name_json_escaped, size_t namen);   /* "" = no game */
 int fps_ft_json(char *buf, size_t size, unsigned long long since);            /* compute the "more metrics"; saved on the console */

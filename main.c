@@ -35,6 +35,7 @@
 
 #include "app.h"
 #include "fps.h"
+#include "osd.h"
 #include "cpuload.h"
 #include "context.h"
 #include "storage.h"
@@ -335,6 +336,7 @@ build_json(char *buf, size_t size, bool ext) {
   n = jcat(buf, size, n, "],");
   n = jclamp(n + (long long)cpuload_json(buf + n, size - n), size);
   n = jclamp(n + (long long)context_json(buf + n, size - n), size);
+  n = jclamp(n + (long long)osd_json(buf + n, size - n), size);
   {
     time_t utc = time(NULL), local = utc;
     static uint8_t tzbuf[64];
@@ -569,7 +571,7 @@ is_action(const char *path) {
   static const char *const actions[] = {
     "/fan/set", "/fan/apply", "/ntp/check", "/ntp/sync", "/ntp/auto",
     "/display/log/clear", "/refresh", "/lat/on", "/fps/more", "/fps/reset",
-    "/quit", NULL
+    "/fps/overlay", "/quit", NULL
   };
   for(int i = 0; actions[i]; i++) {
     if(!strcmp(path, actions[i])) return true;
@@ -733,6 +735,9 @@ handle_client(int fd) {
   } else if(!strcmp(path, "/fps/reset")) {
     fps_reset();
     respond(fd, "200 OK", "text/plain", "ok\n", 3);
+  } else if(!strcmp(path, "/fps/overlay")) {
+    osd_set(on);                        /* on-screen FPS overlay over the game */
+    respond(fd, "200 OK", "text/plain", "ok\n", 3);
   } else if(!strcmp(path, "/quit")) {
     static const char bye[] = APP_NAME " stopped\n";
     respond(fd, "200 OK", "text/plain", bye, sizeof bye - 1);
@@ -758,6 +763,7 @@ main(void) {
   klog_puts(LOG_TAG "start");
   syscall(SYS_thr_set_name, -1, PROC_NAME);
   fps_start();          /* also escalates privileges (needed for /dev/dce) */
+  osd_start();          /* on-screen FPS overlay thread; applies the saved flag, off by default */
   cpuload_start();      /* CPU usage sampler, once per second */
   signal(SIGPIPE, SIG_IGN);
   sysinfo_start();

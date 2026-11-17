@@ -1,0 +1,12 @@
+# Common FPS configuration
+#
+# v1.2.0 defaults:
+#   corner=bottom_left
+#   font_size=24
+#
+
+[overlay]
+corner=bottom_left
+font_size=24
+margin_x=10
+margin_y=10

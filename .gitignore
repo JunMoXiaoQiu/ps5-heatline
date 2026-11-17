@@ -3,3 +3,7 @@
 heatline.elf
 page_html.h
 *.tmp
+
+# overlay engine build outputs
+overlay/build/
+overlay/libheatline_overlay.a

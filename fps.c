@@ -633,6 +633,40 @@ fps_set_more(int on) {
   pthread_mutex_unlock(&g_lock);
 }
 
+int
+fps_now_value(int *fps) {
+  int have = 0;
+  pthread_mutex_lock(&g_lock);
+  if(g_game && g_fps_now >= 0) {
+    if(fps) *fps = (int)(g_fps_now + 0.5);   /* same whole-number rounding as the overlay metrics */
+    have = 1;
+  }
+  pthread_mutex_unlock(&g_lock);
+  return have;
+}
+
+/* Metrics for the in-game overlay, taken straight from Heatline's own sampler
+ * (fps.c) so the overlay and the dashboard show the same numbers from one
+ * source. Returns 1 while a game is running with a measurement, writing the
+ * current one-second FPS and the CapFrameX 20 s real-time average, 1% low and
+ * 0.2% low. A metric with no value yet (window still filling) is written as -1
+ * so the overlay shows "--". Cheap: reads the last computed values under the
+ * lock, triggers no driver read. */
+int
+fps_overlay_metrics(int *fps, int *avg, int *p1, int *p02) {
+  int have = 0;
+  pthread_mutex_lock(&g_lock);
+  if(g_game && g_fps_now >= 0) {
+    have = 1;
+    if(fps) *fps = (int)(g_fps_now + 0.5);
+    if(avg) *avg = g_rt_avg >= 0 ? (int)(g_rt_avg + 0.5) : -1;
+    if(p1)  *p1  = g_rt_p1  >= 0 ? (int)(g_rt_p1  + 0.5) : -1;
+    if(p02) *p02 = g_rt_p02 >= 0 ? (int)(g_rt_p02 + 0.5) : -1;
+  }
+  pthread_mutex_unlock(&g_lock);
+  return have;
+}
+
 static uint64_t
 rd64(const uint8_t *p) {
   uint64_t v;

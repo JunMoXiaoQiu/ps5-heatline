@@ -660,6 +660,7 @@ details.xref>summary:hover{color:var(--txt)}
     <a href="#/system" data-page="system" title="System"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg><span class="lbl">System</span></a>
     <a href="#/network" data-page="network" title="Network"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg><span class="lbl">Network</span></a>
     <a href="#/fan" data-page="fan" title="Fan threshold"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M12 10c0-4 1-7 4-7 2 0 3 2 2 4-1 1.6-3.3 2.4-6 3"/><path d="M14 12c4 0 7 1 7 4 0 2-2 3-4 2-1.6-1-2.4-3.3-3-6"/><path d="M12 14c0 4-1 7-4 7-2 0-3-2-2-4 1-1.6 3.3-2.4 6-3"/><path d="M10 12c-4 0-7-1-7-4 0-2 2-3 4-2 1.6 1 2.4 3.3 3 6"/></svg><span class="lbl">Fan threshold</span></a>
+    <a href="#/overlay" data-page="overlay" title="In-game overlay"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M5 8h5M5 11h3"/><path d="M9 22h6M12 18v4"/></svg><span class="lbl">In-game overlay</span></a>
     <!-- Settings stays the LAST link: add new pages above it -->
     <a href="#/settings" data-page="settings" title="Settings"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="lbl">Settings</span></a>
   </nav>
@@ -973,6 +974,18 @@ details.xref>summary:hover{color:var(--txt)}
 </section>
 </div>
 </div>
+<div class="page" id="page-overlay" data-title="In-game overlay" hidden>
+<div class="row">
+<section class="panel"><div class="phead"><h2>In-game overlay</h2><span class="ctx" id="osdBadge"><i></i><b>off</b></span><div class="grow"></div><span class="sub">session-only</span></div>
+  <div class="fcform">
+    <label class="fcrow"><span><b>Show overlay</b><small>draws metrics over the game itself, not only on this dashboard</small></span><span class="switch"><input type="checkbox" id="osdOn"><span></span></span></label>
+    <p class="note">Status: <b id="osdStatus">—</b></p>
+  </div>
+  <div class="warnbox">This is the only Heatline feature that draws into the home screen (SceShellUI): it injects a renderer into it, and a fault there can crash the home screen (a restart recovers it). It is <b>session-only</b> for safety — always off after Heatline (re)starts, it runs only once you turn it on here, and a restart removes the overlay. The metrics show while a game is in front.</div>
+  <details class="help"><summary>About</summary><dl class="about"><dt>Shows</dt><dd>Over the running game, on one line: <b>FPS</b>, <b>AVG</b>, <b>P1</b> (1% low) and <b>P0.2</b> (0.2% low). The line is colour-coded green / yellow / red by the current FPS. (Single line for now — one text element, the renderer's proven shape.)</dd><dt>How it works</dt><dd>The SimpleFPS / Common-FPS engine, vendored into Heatline, injects a Mono renderer into SceShellUI, whose layer the console composites over the game. The numbers come from Heatline's own sampler (<code>fps.c</code>) — the same source as the dashboard's Game performance panel — so the overlay and dashboard always match, and the game is never ptrace-attached.</dd><dt>1% / 0.2% low</dt><dd>Heatline's CapFrameX-style 1% and 0.2% low FPS, computed from exact per-frame times over a 20 s real-time window. They appear once the window has enough frames, and show "--" until then.</dd><dt>Off switch</dt><dd>Like SimpleFPS there is no clean mid-session off: turning it off stops it starting again, and a restart removes the overlay.</dd><dt>Credits</dt><dd>SimpleFPS (khalifa007) and Common FPS for PS5 (porhe911), GPL-3.0.</dd></dl></details>
+</section>
+</div>
+</div>
 <div class="page" id="page-settings" data-title="Settings" hidden>
 <section class="panel" id="setPanel">
   <div class="phead"><h2>Settings</h2></div>
@@ -1048,7 +1061,7 @@ details.xref>summary:hover{color:var(--txt)}
       <span class="note">Theme, temperature unit, network latency, More metrics, refresh rate, history length and CSV separator go back to their defaults. Fan settings and the History charts are not changed.</span>
     </div>
   </div>
-  <details class="help"><summary>About</summary><dl class="about"><dt>Shows</dt><dd>Theme, temperature unit (°C / °F, display only), measurements, refresh rate, history length, data tools.</dd><dt>Data path</dt><dd>Theme, refresh rate and history length are remembered by this browser only. The measurement switches are saved on the console (<code>/data/heatline/lat_on</code>, <code>fps_more</code>) so every browser sees the same.</dd><dt>Data structure</dt><dd>Browser settings: the browser's local storage (theme, refresh rate, history length, charts). Console settings: files in /data/heatline (lat_on, fps_more, fan_control.ini, ntp_autosync).</dd><dt>Accuracy</dt><dd>—</dd><dt>CSV columns</dt><dd>Export CSV writes one row per History point (raw: every kept point, empty cells where a value had no reading). Columns are grouped by topic: time, temperatures (°C and °F side by side), fan, game, CPU, GPU, power rails, RAM, network, display. The table under Data says where each column is on the page. Separator: <code>,</code> with a decimal point, or <code>;</code> with a decimal comma for Excel in French (and other languages that write 1,5).</dd><dt>Help wanted</dt><dd>Results from other PS5 models and firmwares are welcome for every panel: open Raw data in the panel's About and send it.</dd><dt>Credits</dt><dd><b>Heatline</b>: developed by <a class="devname"></a>, with <b>Claude</b> (Anthropic) as AI co-developer. Built with the ps5-payload-dev SDK and loaded with elfldr. Fonts: Geist and Geist Mono by Vercel (SIL Open Font License 1.1). Formulas and methods from CapFrameX, PS5 Monitor, PS5 Thermal Doctor, ps5-hwinfo, ps5-exporter, ps5-fan-control, PS5 Date/Time Sync, AnyPS5 and shadPS4, credited in each panel's About.</dd></dl><details class="raw" data-raw="api:lat.on,game.rt.more_on"><summary>Raw data</summary><p class="note">No console data of its own: these are Heatline's values it uses (<code>lat.on</code>, <code>game.rt.more_on</code>).</p><pre class="rawpre"></pre></details></details>
+  <details class="help"><summary>About</summary><dl class="about"><dt>Shows</dt><dd>Theme, temperature unit (°C / °F, display only), measurements, refresh rate, history length, data tools.</dd><dt>Data path</dt><dd>Theme, refresh rate and history length are remembered by this browser only. The measurement switches are saved on the console (<code>/data/heatline/lat_on</code>, <code>fps_more</code>) so every browser sees the same.</dd><dt>Data structure</dt><dd>Browser settings: the browser's local storage (theme, refresh rate, history length, charts). Console settings: files in /data/heatline (lat_on, fps_more, fps_overlay, fan_control.ini, ntp_autosync).</dd><dt>Accuracy</dt><dd>—</dd><dt>CSV columns</dt><dd>Export CSV writes one row per History point (raw: every kept point, empty cells where a value had no reading). Columns are grouped by topic: time, temperatures (°C and °F side by side), fan, game, CPU, GPU, power rails, RAM, network, display. The table under Data says where each column is on the page. Separator: <code>,</code> with a decimal point, or <code>;</code> with a decimal comma for Excel in French (and other languages that write 1,5).</dd><dt>Help wanted</dt><dd>Results from other PS5 models and firmwares are welcome for every panel: open Raw data in the panel's About and send it.</dd><dt>Credits</dt><dd><b>Heatline</b>: developed by <a class="devname"></a>, with <b>Claude</b> (Anthropic) as AI co-developer. Built with the ps5-payload-dev SDK and loaded with elfldr. Fonts: Geist and Geist Mono by Vercel (SIL Open Font License 1.1). Formulas and methods from CapFrameX, PS5 Monitor, PS5 Thermal Doctor, ps5-hwinfo, ps5-exporter, ps5-fan-control, PS5 Date/Time Sync, AnyPS5 and shadPS4, credited in each panel's About.</dd></dl><details class="raw" data-raw="api:lat.on,game.rt.more_on"><summary>Raw data</summary><p class="note">No console data of its own: these are Heatline's values it uses (<code>lat.on</code>, <code>game.rt.more_on</code>).</p><pre class="rawpre"></pre></details></details>
 </section>
 </div>
 </main>
@@ -1692,6 +1705,7 @@ function ingest(d) {
   drawRam(d.ram);
   drawStorage(d.storage);
   drawLat(d.lat);
+  drawOsd(d.overlay);
   showDisp(d.display);
   drawSys(d);
   setClock(d.clock);
@@ -2201,6 +2215,18 @@ function belowOf(g) {
   const k = b.fps.indexOf(target); if (k < 0) return null;
   return {fps: target, ms: b.ms[k], n: b.n[k], pct: Math.min(100, b.ms[k] / b.time_ms * 100)};
 }
+// ---- in-game overlay (draws metrics over the game itself)
+function drawOsd(o) {
+  if (!o) return;
+  if (document.activeElement !== $("osdOn")) $("osdOn").checked = !!o.on;
+  setText($("osdStatus"), o.status || (o.on ? "on" : "off"));
+  const b = $("osdBadge");
+  if (b) {
+    b.classList.toggle("game", !!o.on);
+    const t = b.querySelector("b");
+    if (t) t.textContent = o.on ? "on" : "off";
+  }
+}
 // ---- network latency
 function drawLat(l) {
   if (!l) return;
@@ -2563,6 +2589,7 @@ for (const [cls, url] of [["latSw", "/lat/on"]])
     act(url + "?on=" + (e.target.checked ? 1 : 0)).catch(() => {});
   };
 $("moreOn").onchange = e => act("/fps/more?on=" + (e.target.checked ? 1 : 0)).catch(() => {});
+$("osdOn").onchange = e => act("/fps/overlay?on=" + (e.target.checked ? 1 : 0)).catch(() => {});
 // "Reset all settings": every setting of the Settings page back to its default (the
 // table in the README). Two clicks, like a high fan threshold, so a stray click does nothing.
 let defaultsArmed = null;
@@ -2578,12 +2605,13 @@ $("setDefaults").onclick = () => {
   setTUnit(0, true);                                        // °C
   for (const sw of document.querySelectorAll(".latSw")) sw.checked = false;
   $("moreOn").checked = false;
+  $("osdOn").checked = false;
   rate = RATE_DEFAULT; saveRate(); start(); curUnit = "s"; markUnit(); showRate();   // 1 s
   setWindow(WIN_DEFAULT); winUnit = "min"; showWin();       // 10 min
   setCsvSep(0, true);                                       // , with decimal point
-  Promise.all([act("/lat/on?on=0"), act("/fps/more?on=0")])  // saved on the console
-    .then(r => { msg.textContent = r.every(x => x.ok) ? "Settings reset to defaults" : "Reset here; the console did not save latency / More metrics"; })
-    .catch(() => { msg.textContent = "Reset here; the console could not be reached for latency / More metrics"; });
+  Promise.all([act("/lat/on?on=0"), act("/fps/more?on=0"), act("/fps/overlay?on=0")])  // saved on the console
+    .then(r => { msg.textContent = r.every(x => x.ok) ? "Settings reset to defaults" : "Reset here; the console did not save latency / More metrics / overlay"; })
+    .catch(() => { msg.textContent = "Reset here; the console could not be reached for latency / More metrics / overlay"; });
 };
 $("moreMetrics").addEventListener("toggle", () => { try { localStorage.setItem("heatline-more", $("moreMetrics").open ? "1" : "0"); } catch (e) {} });
 $("devToggle").onchange = e => {

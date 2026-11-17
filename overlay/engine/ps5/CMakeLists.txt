@@ -1,0 +1,245 @@
+cmake_minimum_required(VERSION 3.20)
+project(CommonFPS_PS5 C CXX)
+
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if(NOT DEFINED ENV{PS5_PAYLOAD_SDK})
+    message(FATAL_ERROR "PS5_PAYLOAD_SDK is not set")
+endif()
+
+if(NOT COMMON_FPS_ETAHEN_SOURCE)
+    # Heatline builds only the heatline_overlay static library, which does not
+    # use any etaHEN header. Provide a harmless default so configure succeeds;
+    # the etaHEN-only controller/plugin targets are not built here.
+    set(COMMON_FPS_ETAHEN_SOURCE "${CMAKE_CURRENT_LIST_DIR}/etahen_stub")
+endif()
+
+if(NOT COMMON_FPS_SHSRV_SOURCE)
+    message(FATAL_ERROR "COMMON_FPS_SHSRV_SOURCE is required")
+endif()
+
+set(ROOT "${CMAKE_CURRENT_LIST_DIR}/..")
+set(SDK "$ENV{PS5_PAYLOAD_SDK}")
+set(ETAHEN_ROOT "${COMMON_FPS_ETAHEN_SOURCE}/Source Code")
+set(GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
+# ------------------------------------------------------------------
+# Source-only ShellUI renderer.
+# ------------------------------------------------------------------
+add_library(common_fps_shellui SHARED)
+
+set_target_properties(common_fps_shellui PROPERTIES
+    OUTPUT_NAME "Common_FPS_ShellUI_v1.2.1"
+    PREFIX ""
+    SUFFIX ".elf"
+    NO_SONAME TRUE
+)
+
+target_sources(common_fps_shellui PRIVATE
+    "${ROOT}/src/core/layout.cpp"
+    "${ROOT}/src/core/wire.cpp"
+    "${ROOT}/src/ps5/shellui_payload/commonfps_shellui.cpp"
+    "${ROOT}/src/ps5/shellui_payload/commonfps_shellui_entry.cpp"
+)
+
+target_include_directories(common_fps_shellui PRIVATE
+    "${ROOT}/include"
+    "${ROOT}/src/ps5/shellui_payload"
+    "${SDK}"
+    "${SDK}/include"
+)
+
+target_compile_options(common_fps_shellui PRIVATE
+    --target=x86_64-sie-ps5
+    -DPS5
+    -fPIC
+    -fvisibility=hidden
+    -march=znver2
+    -O2
+    -Wall
+    -Wextra
+    -ffunction-sections
+    -fdata-sections
+)
+
+target_link_options(common_fps_shellui PRIVATE
+    -Wl,--gc-sections
+    -Wl,-Bsymbolic
+    -Wl,-e,elf_main
+    -Wl,-soname,libCommonFPS_ShellUI.so
+    -Wl,-z,now
+    -Wl,--hash-style=sysv
+)
+
+target_link_libraries(common_fps_shellui PRIVATE
+    kernel_sys
+    SceLibcInternal
+    SceNet
+)
+
+add_custom_command(
+    TARGET common_fps_shellui
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${ROOT}/dist"
+    COMMAND ${CMAKE_COMMAND} -E copy
+            "$<TARGET_FILE:common_fps_shellui>"
+            "${ROOT}/dist/Common_FPS_ShellUI_v1.2.1.elf"
+)
+
+# Convert the source-built renderer ELF into a controller-linked byte array.
+set(SHELLUI_BLOB_CPP "${GENERATED_DIR}/commonfps_shellui_blob.cpp")
+add_custom_command(
+    OUTPUT "${SHELLUI_BLOB_CPP}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${GENERATED_DIR}"
+    COMMAND python3
+            "${ROOT}/tools/embed_binary.py"
+            "$<TARGET_FILE:common_fps_shellui>"
+            "${SHELLUI_BLOB_CPP}"
+    DEPENDS
+        common_fps_shellui
+        "${ROOT}/tools/embed_binary.py"
+    VERBATIM
+)
+
+# ------------------------------------------------------------------
+# Controller/plugin ELF.
+# ------------------------------------------------------------------
+add_executable(common_fps_controller)
+
+set_target_properties(common_fps_controller PROPERTIES
+    OUTPUT_NAME "Common_FPS_PS5_v1.2.1.elf"
+)
+
+target_sources(common_fps_controller PRIVATE
+    # Current v1.2.1 sampler, lifecycle and ShellUI implementation.
+    "${ROOT}/src/core/config.cpp"
+    "${ROOT}/src/core/fps_sampler.cpp"
+    "${ROOT}/src/core/layout.cpp"
+    "${ROOT}/src/core/overlay_rows.cpp"
+    "${ROOT}/src/core/wire.cpp"
+    "${ROOT}/src/ps5/commonfps_ps5_main.cpp"
+    "${ROOT}/src/ps5/ps5_platform.cpp"
+    "${ROOT}/src/ps5/dce_fps_sampler.cpp"
+    "${ROOT}/src/ps5/state_sender.cpp"
+    "${ROOT}/src/ps5/shellui_injector.cpp"
+    "${ROOT}/src/ps5/shellui_hook_controller.cpp"
+    "${ROOT}/src/ps5/stable_shellui_injector.cpp"
+    "${ROOT}/src/ps5/remote_call.cpp"
+    "${ROOT}/src/ps5/stable_elfldr_bridge.c"
+    "${COMMON_FPS_SHSRV_SOURCE}/pt.c"
+    "${ROOT}/src/ps5/stable_sampler/process_sysctl.cpp"
+    "${ROOT}/src/ps5/stable_sampler/proc_rw_v960.cpp"
+    "${ROOT}/src/ps5/stable_sampler/videoout_module.cpp"
+    "${SHELLUI_BLOB_CPP}"
+)
+
+target_compile_definitions(common_fps_controller PRIVATE
+    COMMON_FPS_V121=1
+    COMMON_FPS_DIAGNOSTIC_SYSCTL_ONLY=1
+)
+
+target_include_directories(common_fps_controller PRIVATE
+    "${ROOT}/include"
+    "${ROOT}/src/ps5"
+    "${ETAHEN_ROOT}/include"
+    "${ETAHEN_ROOT}/fps_elf/include"
+    "${COMMON_FPS_SHSRV_SOURCE}"
+    "${SDK}"
+    "${SDK}/include"
+)
+
+target_compile_options(common_fps_controller PRIVATE
+    --target=x86_64-sie-ps5
+    -DPS5
+    -fPIC
+    -fPIE
+    -ffunction-sections
+    -fdata-sections
+    -march=znver2
+    -O2
+    -Wall
+    -Wextra
+)
+
+target_link_options(common_fps_controller PRIVATE
+    -Wl,--gc-sections
+)
+
+target_link_libraries(common_fps_controller PRIVATE
+    kernel_sys
+    SceLibcInternal
+    SceSystemService
+    SceNet
+    SceSysmodule
+    SceUserService
+    SceNetCtl
+)
+
+# ------------------------------------------------------------------
+# Package the controller as one etaHEN .plugin.
+# ------------------------------------------------------------------
+add_custom_command(
+    TARGET common_fps_controller
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${ROOT}/dist"
+    COMMAND ${CMAKE_COMMAND} -E copy
+            "$<TARGET_FILE:common_fps_controller>"
+            "${ROOT}/dist/Common_FPS_PS5_v1.2.1.elf"
+    COMMAND python3
+            "${ROOT}/tools/make_etahen_plugin.py"
+            "${ROOT}/dist/Common_FPS_PS5_v1.2.1.elf"
+            "${ROOT}/dist/Common_FPS_PS5_etaHEN_v1.2.1.plugin"
+            --title-id CFPS00058
+            --version 1.21
+)
+
+# ------------------------------------------------------------------
+# Heatline integration: the same controller as a STATIC LIBRARY.
+# Links into heatline.elf; entry renamed via overlay_api.cpp.
+# ------------------------------------------------------------------
+add_library(heatline_overlay STATIC
+    "${ROOT}/src/core/config.cpp"
+    "${ROOT}/src/core/fps_sampler.cpp"
+    "${ROOT}/src/core/layout.cpp"
+    "${ROOT}/src/core/overlay_rows.cpp"
+    "${ROOT}/src/core/wire.cpp"
+    "${ROOT}/src/ps5/overlay_api.cpp"
+    "${ROOT}/src/ps5/ps5_platform.cpp"
+    "${ROOT}/src/ps5/dce_fps_sampler.cpp"
+    "${ROOT}/src/ps5/state_sender.cpp"
+    "${ROOT}/src/ps5/shellui_injector.cpp"
+    "${ROOT}/src/ps5/shellui_hook_controller.cpp"
+    "${ROOT}/src/ps5/stable_shellui_injector.cpp"
+    "${ROOT}/src/ps5/remote_call.cpp"
+    "${ROOT}/src/ps5/stable_elfldr_bridge.c"
+    "${COMMON_FPS_SHSRV_SOURCE}/pt.c"
+    "${ROOT}/src/ps5/stable_sampler/process_sysctl.cpp"
+    "${ROOT}/src/ps5/stable_sampler/proc_rw_v960.cpp"
+    "${ROOT}/src/ps5/stable_sampler/videoout_module.cpp"
+    "${SHELLUI_BLOB_CPP}"
+)
+target_compile_definitions(heatline_overlay PRIVATE
+    COMMON_FPS_V121=1
+    COMMON_FPS_DIAGNOSTIC_SYSCTL_ONLY=1
+    HEATLINE_NO_GAME_ATTACH=1   # never ptrace-attach the game; DCE sampler only (no stutter)
+    # FULL injection: start the renderer thread (the real overlay). Diagnostics
+    # proved every earlier stage works in-process (load-only: all green), and
+    # the game-attach bug that ran during the first hang is now gone, so this is
+    # the real attempt. Logs to /data/CommonFPS_v1_2_1(.shellui).log.
+    # For a safe no-injection build instead, set HEATLINE_NO_INJECT=1 here.
+)
+target_include_directories(heatline_overlay PRIVATE
+    "${ROOT}/include"
+    "${ROOT}/src/ps5"
+    "${COMMON_FPS_SHSRV_SOURCE}"
+    "${SDK}"
+    "${SDK}/include"
+)
+target_compile_options(heatline_overlay PRIVATE
+    --target=x86_64-sie-ps5
+    -DPS5 -fPIC -fPIE -ffunction-sections -fdata-sections
+    -march=znver2 -O2 -Wall -Wextra
+)

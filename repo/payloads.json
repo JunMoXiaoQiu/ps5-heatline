@@ -6,12 +6,12 @@
       "id": "heatline",
       "name": "Heatline",
       "filename": "heatline.elf",
-      "url": "https://github.com/JunMoXiaoQiu/ps5-heatline/releases/download/v0.0.1/heatline.elf",
-      "description": "Console temperature & FPS monitor. Open http://<PS5 IP>:8776/ or the Heatline tile on the home screen.",
-      "version": "v0.0.1",
-      "last_update": "2026-11-15",
+      "url": "https://github.com/JunMoXiaoQiu/ps5-heatline/releases/download/v0.1.0/heatline.elf",
+      "description": "Console temperature, FPS and in-game overlay monitor. Open http://<PS5 IP>:8776/ or the Heatline tile on the home screen.",
+      "version": "v0.1.0",
+      "last_update": "2026-11-16",
       "category": "Utilities",
-      "checksum": "b87b1c21293d15f523448610b491d95939c5497e16175e71f6c2100ccec4572f",
+      "checksum": "8dd1fa2786b12994659181d2a65d001302559e80e6f066d78fd2b012ccbc62e9",
       "author": "JunMoXiaoQiu, with Claude (Anthropic)",
       "icon_key": "heatline"
     }
