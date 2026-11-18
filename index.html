@@ -149,6 +149,21 @@ a.brand{text-decoration:none}
 .fcwarn{margin:0;padding:10px 14px;border-radius:14px;font-size:12.5px;line-height:1.45;color:var(--txt);background:rgba(241,180,76,.12);box-shadow:inset 0 0 0 1px rgba(241,180,76,.45)}
 .fcwarn b{color:var(--warn)}
 label.fcrow{cursor:pointer}
+.mrow{align-items:flex-start;flex-direction:column}
+.mgroups{display:flex;flex-direction:column;gap:8px;width:100%}
+.mgroup{display:flex;gap:10px;align-items:flex-start}
+.mname{flex:0 0 108px;font-size:11.5px;color:var(--mut);padding-top:7px}
+.mchips{display:flex;flex-wrap:wrap;gap:6px}
+.mchip{height:28px;padding:0 10px;border:0;border-radius:8px;background:var(--bg);color:var(--mc,var(--txt));font:inherit;font-size:12px;font-weight:600;box-shadow:inset 0 0 0 1px var(--grid);cursor:pointer}
+.mchip:hover{background:var(--ctl)}
+.mchip:focus-visible{outline:2px solid #7CC4FF;outline-offset:2px}
+.osdnum{display:flex;gap:12px;align-items:center}
+.osdnum label{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--mut)}
+.osdnum input{height:32px;width:74px;padding:0 8px;border:0;border-radius:8px;background:var(--bg);color:var(--txt);font:inherit;font-size:12.5px;box-shadow:inset 0 0 0 1px var(--grid)}
+.osdnum input:focus-visible{outline:2px solid #7CC4FF;outline-offset:2px}
+.osdspec{display:flex;gap:8px;align-items:center}
+.osdspec input{height:32px;width:min(220px,40vw);padding:0 10px;border:0;border-radius:8px;background:var(--bg);color:var(--txt);font:inherit;font-size:12.5px;box-shadow:inset 0 0 0 1px var(--grid)}
+.osdspec input:focus-visible{outline:2px solid #7CC4FF;outline-offset:2px}
 .fcnum{width:64px;height:36px;border:1px solid transparent;border-radius:9px;background:var(--bg);text-align:center;font:600 15px var(--mono);padding:0 4px;-moz-appearance:textfield;appearance:textfield}
 .fcnum::-webkit-outer-spin-button,.fcnum::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .fcnum:focus{outline:none;border-color:#7CC4FF}
@@ -980,10 +995,22 @@ details.xref>summary:hover{color:var(--txt)}
 <section class="panel"><div class="phead"><h2>In-game overlay</h2><span class="ctx" id="osdBadge"><i></i><b>off</b></span><div class="grow"></div><span class="sub">session-only</span></div>
   <div class="fcform">
     <label class="fcrow"><span><b>Show overlay</b><small>draws metrics over the game itself, not only on this dashboard</small></span><span class="switch"><input type="checkbox" id="osdOn"><span></span></span></label>
-    <p class="note">Status: <b id="osdStatus">—</b></p>
+    <div class="fcrow"><span><b>Position</b><small>which corner of the screen the overlay sits in</small></span>
+      <span class="seg" id="osdCorner"><button type="button" data-c="0">Top left</button><button type="button" data-c="1">Top right</button><button type="button" data-c="2">Bottom left</button><button type="button" data-c="3">Bottom right</button></span></div>
+    <div class="fcrow"><span><b>Distance from the edge</b><small>horizontal and vertical margin, in pixels of a 1920 &times; 1080 screen</small></span>
+      <span class="osdnum"><label>X <input type="number" id="osdMx" min="0" max="400" step="5"></label><label>Y <input type="number" id="osdMy" min="0" max="400" step="5"></label></span></div>
+    <div class="fcrow"><span><b>Size and opacity</b><small>text size 16&ndash;40 (24 is the default), opacity 20&ndash;100 %</small></span>
+      <span class="osdnum"><label>Size <input type="number" id="osdFont" min="16" max="40" step="1"></label><label>Opacity <input type="number" id="osdOpac" min="20" max="100" step="10"></label></span></div>
+    <div class="fcrow"><span><b>Layout</b><small>how the metrics are arranged on screen</small></span>
+      <span class="seg" id="osdLayout"><button type="button" data-spec="FPS;AVG;P1;P0.2">Vertical</button><button type="button" data-spec="FPS,AVG,P1,P0.2">Horizontal</button></span></div>
+    <div class="fcrow"><span><b>Custom layout</b><small>pick metrics below &middot; <code>;</code> starts a new line, <code>,</code> adds one beside it &middot; e.g. <code>FPS,AVG;P1,P0.2</code></small></span>
+      <span class="osdspec"><input type="text" id="osdSpec" maxlength="96" spellcheck="false" autocomplete="off" placeholder="FPS;AVG;P1;P0.2"><button type="button" class="btn sm" id="osdSpecApply">Apply</button></span></div>
+    <div class="fcrow mrow"><span><b>Metrics</b><small>click one to add it to the custom layout above, then press Apply &middot; at most 12 on screen</small></span>
+      <div class="mgroups"><div class="mgroup"><span class="mname">game performance (Heatline&#x27;s fps.c)</span><span class="mchips"><button type="button" class="mchip" data-token="FPS" title="add FPS to the layout" style="--mc:#4cd964">FPS</button><button type="button" class="mchip" data-token="AVG" title="add AVG to the layout" style="--mc:#33d6e0">AVG</button><button type="button" class="mchip" data-token="P1" title="add P1 to the layout" style="--mc:#ffa733">P1</button><button type="button" class="mchip" data-token="P0.2" title="add P0.2 to the layout" style="--mc:#ff5a4f">P0.2</button><button type="button" class="mchip" data-token="LOW1" title="add LOW1 to the layout" style="--mc:#ffd60a">1%LOW</button><button type="button" class="mchip" data-token="LOW02" title="add LOW02 to the layout" style="--mc:#ff9f0a">0.2%LOW</button><button type="button" class="mchip" data-token="FT" title="add FT to the layout" style="--mc:#bf5af2">FT</button><button type="button" class="mchip" data-token="FTWST" title="add FTWST to the layout" style="--mc:#ff6bd6">FT MAX</button><button type="button" class="mchip" data-token="SAVG" title="add SAVG to the layout" style="--mc:#30d158">S.AVG</button><button type="button" class="mchip" data-token="SMIN" title="add SMIN to the layout" style="--mc:#66d4cf">S.MIN</button><button type="button" class="mchip" data-token="SMAX" title="add SMAX to the layout" style="--mc:#a4f4a4">S.MAX</button><button type="button" class="mchip" data-token="STUT" title="add STUT to the layout" style="--mc:#ff453a">STUT</button><button type="button" class="mchip" data-token="STUTN" title="add STUTN to the layout" style="--mc:#ff6961">STUT N</button></span></div><div class="mgroup"><span class="mname">game performance, &quot;more metrics&quot; (turn on in the dashboard)</span><span class="mchips"><button type="button" class="mchip" data-token="P5" title="add P5 to the layout" style="--mc:#5ac8fa">P5</button><button type="button" class="mchip" data-token="P50" title="add P50 to the layout" style="--mc:#5ac8fa">P50</button><button type="button" class="mchip" data-token="P95" title="add P95 to the layout" style="--mc:#5ac8fa">P95</button><button type="button" class="mchip" data-token="P99" title="add P99 to the layout" style="--mc:#5ac8fa">P99</button><button type="button" class="mchip" data-token="P0.1" title="add P0.1 to the layout" style="--mc:#5ac8fa">P0.1</button><button type="button" class="mchip" data-token="LOW01" title="add LOW01 to the layout" style="--mc:#5ac8fa">0.1%LOW</button><button type="button" class="mchip" data-token="IL1" title="add IL1 to the layout" style="--mc:#5ac8fa">1%INT</button><button type="button" class="mchip" data-token="IL02" title="add IL02 to the layout" style="--mc:#5ac8fa">0.2%INT</button><button type="button" class="mchip" data-token="IL01" title="add IL01 to the layout" style="--mc:#5ac8fa">0.1%INT</button><button type="button" class="mchip" data-token="ASTD" title="add ASTD to the layout" style="--mc:#5ac8fa">A.STD</button><button type="button" class="mchip" data-token="FTMIN" title="add FTMIN to the layout" style="--mc:#bf5af2">FT MIN</button><button type="button" class="mchip" data-token="FTMAX" title="add FTMAX to the layout" style="--mc:#bf5af2">FT HI</button></span></div><div class="mgroup"><span class="mname">temperatures</span><span class="mchips"><button type="button" class="mchip" data-token="CPUT" title="add CPUT to the layout" style="--mc:#ff7a59">CPU T</button><button type="button" class="mchip" data-token="SOCT" title="add SOCT to the layout" style="--mc:#ff9f6b">SOC T</button><button type="button" class="mchip" data-token="HOTT" title="add HOTT to the layout" style="--mc:#ff4f4f">HOT</button></span></div><div class="mgroup"><span class="mname">clocks</span><span class="mchips"><button type="button" class="mchip" data-token="CPUMHZ" title="add CPUMHZ to the layout" style="--mc:#7c9cff">CPU MHz</button><button type="button" class="mchip" data-token="GPUMHZ" title="add GPUMHZ to the layout" style="--mc:#9b8cff">GPU MHz</button></span></div><div class="mgroup"><span class="mname">power</span><span class="mchips"><button type="button" class="mchip" data-token="CPUW" title="add CPUW to the layout" style="--mc:#ffd60a">CPU W</button><button type="button" class="mchip" data-token="GPUW" title="add GPUW to the layout" style="--mc:#ffe066">GPU W</button><button type="button" class="mchip" data-token="TOTW" title="add TOTW to the layout" style="--mc:#ffc300">CPU+GPU</button><button type="button" class="mchip" data-token="CVOLT" title="add CVOLT to the layout" style="--mc:#f2c94c">CPU V</button><button type="button" class="mchip" data-token="GVOLT" title="add GVOLT to the layout" style="--mc:#f2d36b">GPU V</button><button type="button" class="mchip" data-token="CAMP" title="add CAMP to the layout" style="--mc:#e8b84a">CPU A</button><button type="button" class="mchip" data-token="GAMP" title="add GAMP to the layout" style="--mc:#e8c46a">GPU A</button></span></div><div class="mgroup"><span class="mname">fan</span><span class="mchips"><button type="button" class="mchip" data-token="FAN" title="add FAN to the layout" style="--mc:#66d4cf">FAN</button></span></div><div class="mgroup"><span class="mname">memory</span><span class="mchips"><button type="button" class="mchip" data-token="RAMS" title="add RAMS to the layout" style="--mc:#bf5af2">SYSRAM</button><button type="button" class="mchip" data-token="RAMG" title="add RAMG to the layout" style="--mc:#d68cff">GAMERAM</button></span></div><div class="mgroup"><span class="mname">CPU load</span><span class="mchips"><button type="button" class="mchip" data-token="LOAD" title="add LOAD to the layout" style="--mc:#30d158">CPU</button></span></div><div class="mgroup"><span class="mname">CPU cores</span><span class="mchips"><button type="button" class="mchip" data-token="C1MHZ" title="add C1MHZ to the layout" style="--mc:#7c9cff">C1 MHz</button><button type="button" class="mchip" data-token="C2MHZ" title="add C2MHZ to the layout" style="--mc:#7c9cff">C2 MHz</button><button type="button" class="mchip" data-token="C3MHZ" title="add C3MHZ to the layout" style="--mc:#7c9cff">C3 MHz</button><button type="button" class="mchip" data-token="C4MHZ" title="add C4MHZ to the layout" style="--mc:#7c9cff">C4 MHz</button><button type="button" class="mchip" data-token="C5MHZ" title="add C5MHZ to the layout" style="--mc:#7c9cff">C5 MHz</button><button type="button" class="mchip" data-token="C6MHZ" title="add C6MHZ to the layout" style="--mc:#7c9cff">C6 MHz</button><button type="button" class="mchip" data-token="C7MHZ" title="add C7MHZ to the layout" style="--mc:#7c9cff">C7 MHz</button><button type="button" class="mchip" data-token="C8MHZ" title="add C8MHZ to the layout" style="--mc:#7c9cff">C8 MHz</button><button type="button" class="mchip" data-token="C1LOAD" title="add C1LOAD to the layout" style="--mc:#30d158">C1 LOAD</button><button type="button" class="mchip" data-token="C2LOAD" title="add C2LOAD to the layout" style="--mc:#30d158">C2 LOAD</button><button type="button" class="mchip" data-token="C3LOAD" title="add C3LOAD to the layout" style="--mc:#30d158">C3 LOAD</button><button type="button" class="mchip" data-token="C4LOAD" title="add C4LOAD to the layout" style="--mc:#30d158">C4 LOAD</button><button type="button" class="mchip" data-token="C5LOAD" title="add C5LOAD to the layout" style="--mc:#30d158">C5 LOAD</button><button type="button" class="mchip" data-token="C6LOAD" title="add C6LOAD to the layout" style="--mc:#30d158">C6 LOAD</button><button type="button" class="mchip" data-token="C7LOAD" title="add C7LOAD to the layout" style="--mc:#30d158">C7 LOAD</button><button type="button" class="mchip" data-token="C8LOAD" title="add C8LOAD to the layout" style="--mc:#30d158">C8 LOAD</button></span></div><div class="mgroup"><span class="mname">network</span><span class="mchips"><button type="button" class="mchip" data-token="RX" title="add RX to the layout" style="--mc:#64d2ff">RX Mb/s</button><button type="button" class="mchip" data-token="TX" title="add TX to the layout" style="--mc:#40c8e0">TX Mb/s</button><button type="button" class="mchip" data-token="LATGW" title="add LATGW to the layout" style="--mc:#ffb340">ROUTER</button><button type="button" class="mchip" data-token="LATNET" title="add LATNET to the layout" style="--mc:#ff9f0a">PING</button><button type="button" class="mchip" data-token="JITGW" title="add JITGW to the layout" style="--mc:#ffcc80">RT JIT</button><button type="button" class="mchip" data-token="JITNET" title="add JITNET to the layout" style="--mc:#ffb74d">NET JIT</button></span></div></div></div>
+    <p class="note">Status: <b id="osdStatus">—</b> <span id="osdLayoutMsg"></span></p>
   </div>
   <div class="warnbox">This is the only Heatline feature that draws into the home screen (SceShellUI): it injects a renderer into it, and a fault there can crash the home screen (a restart recovers it). It is <b>session-only</b> for safety — always off after Heatline (re)starts, it runs only once you turn it on here, and a restart removes the overlay. The metrics show while a game is in front.</div>
-  <details class="help"><summary>About</summary><dl class="about"><dt>Shows</dt><dd>Over the running game, on one line: <b>FPS</b>, <b>AVG</b>, <b>P1</b> (1% low) and <b>P0.2</b> (0.2% low). The line is colour-coded green / yellow / red by the current FPS. (Single line for now — one text element, the renderer's proven shape.)</dd><dt>How it works</dt><dd>The SimpleFPS / Common-FPS engine, vendored into Heatline, injects a Mono renderer into SceShellUI, whose layer the console composites over the game. The numbers come from Heatline's own sampler (<code>fps.c</code>) — the same source as the dashboard's Game performance panel — so the overlay and dashboard always match, and the game is never ptrace-attached.</dd><dt>1% / 0.2% low</dt><dd>Heatline's CapFrameX-style 1% and 0.2% low FPS, computed from exact per-frame times over a 20 s real-time window. They appear once the window has enough frames, and show "--" until then.</dd><dt>Off switch</dt><dd>Like SimpleFPS there is no clean mid-session off: turning it off stops it starting again, and a restart removes the overlay.</dd><dt>Credits</dt><dd>SimpleFPS (khalifa007) and Common FPS for PS5 (porhe911), GPL-3.0.</dd></dl></details>
+  <details class="help"><summary>About</summary><dl class="about"><dt>Shows</dt><dd>Over the running game: <b>FPS</b>, <b>AVG</b>, <b>P1</b> (1% low) and <b>P0.2</b> (0.2% low). Any of about 60 metrics: game performance (FPS, AVG, P1, P0.2, lows, frame time, stutter, percentiles), temperatures, clocks (overall and per core), power, fan, memory, CPU load, network speed and latency. Each has its own colour, a fixed colon and a right-aligned number so nothing shifts as values change. Arrange them with the layout controls: one per line, all on one line, or any grid. Metrics without a value right now (no game running, a sensor not read, the "more metrics" switch off) show "--". (Experimental.)</dd><dt>How it works</dt><dd>The SimpleFPS / Common-FPS engine, vendored into Heatline, injects a Mono renderer into SceShellUI, whose layer the console composites over the game. The numbers come from Heatline's own sampler (<code>fps.c</code>) — the same source as the dashboard's Game performance panel — so the overlay and dashboard always match, and the game is never ptrace-attached.</dd><dt>1% / 0.2% low</dt><dd>Heatline's CapFrameX-style 1% and 0.2% low FPS, computed from exact per-frame times over a 20 s real-time window. They appear once the window has enough frames, and show "--" until then.</dd><dt>Off switch</dt><dd>Like SimpleFPS there is no clean mid-session off: turning it off stops it starting again, and a restart removes the overlay.</dd><dt>Credits</dt><dd>SimpleFPS (khalifa007) and Common FPS for PS5 (porhe911), GPL-3.0.</dd></dl></details>
 </section>
 </div>
 </div>
@@ -2221,6 +2248,17 @@ function drawOsd(o) {
   if (!o) return;
   if (document.activeElement !== $("osdOn")) $("osdOn").checked = !!o.on;
   setText($("osdStatus"), o.status || (o.on ? "on" : "off"));
+  if (o.style) {
+    for (const b of document.querySelectorAll("#osdCorner button")) b.classList.toggle("on", +b.dataset.c === o.style.corner);
+    for (const [id, v] of [["osdMx", o.style.mx], ["osdMy", o.style.my], ["osdFont", o.style.font], ["osdOpac", o.style.opacity]])
+      if (document.activeElement !== $(id)) $(id).value = v;
+  }
+  if (o.layout) {
+    for (const b of document.querySelectorAll("#osdLayout button")) b.classList.toggle("on", b.dataset.spec === o.layout);
+    if (document.activeElement !== $("osdSpec")) $("osdSpec").value = o.layout;
+    const shown = new Set(o.layout.split(/[;,]/).map(x => x.toUpperCase()));
+    for (const c of document.querySelectorAll(".mchip")) c.style.boxShadow = shown.has(c.dataset.token.toUpperCase()) ? "inset 0 0 0 2px var(--mc)" : "";
+  }
   const b = $("osdBadge");
   if (b) {
     b.classList.toggle("game", !!o.on);
@@ -2591,6 +2629,38 @@ for (const [cls, url] of [["latSw", "/lat/on"]])
   };
 $("moreOn").onchange = e => act("/fps/more?on=" + (e.target.checked ? 1 : 0)).catch(() => {});
 $("osdOn").onchange = e => act("/fps/overlay?on=" + (e.target.checked ? 1 : 0)).catch(() => {});
+// Position and size: sent a moment after the last change, so typing "30" does not
+// first apply "3". Only what the page shows is sent; the console clamps it.
+let osdStyleTimer = null;
+function sendOsdStyle(corner) {
+  clearTimeout(osdStyleTimer);
+  osdStyleTimer = setTimeout(async () => {
+    const q = new URLSearchParams({mx: $("osdMx").value || 0, my: $("osdMy").value || 0,
+      font: $("osdFont").value || 24, opacity: $("osdOpac").value || 100});
+    if (corner != null) q.set("corner", corner);
+    const m = $("osdLayoutMsg");
+    try { const r = await act("/overlay/style?" + q); setText(m, r.ok ? "· applied" : "· not accepted"); }
+    catch (e) { setText(m, "· could not reach Heatline"); }
+    setTimeout(() => setText(m, ""), 2500);
+  }, corner != null ? 0 : 450);
+}
+for (const b of document.querySelectorAll("#osdCorner button")) b.onclick = () => sendOsdStyle(b.dataset.c);
+for (const id of ["osdMx", "osdMy", "osdFont", "osdOpac"]) $(id).oninput = () => sendOsdStyle(null);
+async function setOsdLayout(spec) {
+  const m = $("osdLayoutMsg");
+  try {
+    const r = await act("/overlay/layout?spec=" + encodeURIComponent(spec));
+    setText(m, r.ok ? "· layout applied" : "· no known metric in that layout");
+  } catch (e) { setText(m, "· could not reach Heatline"); }
+  setTimeout(() => setText(m, ""), 3000);
+}
+for (const b of document.querySelectorAll("#osdLayout button")) b.onclick = () => setOsdLayout(b.dataset.spec);
+for (const b of document.querySelectorAll(".mchip")) b.onclick = () => {
+  const i = $("osdSpec"), v = i.value.trim();
+  i.value = v ? v + (/[;,]$/.test(v) ? "" : ",") + b.dataset.token : b.dataset.token;
+};
+$("osdSpecApply").onclick = () => setOsdLayout($("osdSpec").value.trim());
+$("osdSpec").onkeydown = e => { if (e.key === "Enter") setOsdLayout($("osdSpec").value.trim()); };
 // "Reset all settings": every setting of the Settings page back to its default (the
 // table in the README). Two clicks, like a high fan threshold, so a stray click does nothing.
 let defaultsArmed = null;

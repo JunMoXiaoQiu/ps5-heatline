@@ -52,4 +52,9 @@ void build_overlay_rows(OverlayFrame& frame, const OverlayReadings& readings);
  * renderer's proven single-widget shape; multi-row drawing is deferred. */
 void build_overlay_single_line(OverlayFrame& frame, const OverlayReadings& readings);
 
+/* DIAGNOSTIC: two separately-coloured value widgets ("FPS : n" green, then
+ * "AVG : n" cyan ~15 s later) to test whether creating a second Mono widget is
+ * safe on the console, with the two creations spaced out in time. */
+void build_overlay_metrics(OverlayFrame& frame, const OverlayReadings& readings);
+
 } // namespace common_fps

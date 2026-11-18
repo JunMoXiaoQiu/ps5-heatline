@@ -16,14 +16,14 @@ ifeq ($(VERSION),)
     $(error VERSION file is missing or empty)
 endif
 
-CFLAGS := -Wall -Werror -O2 -DHEATLINE_VERSION='"$(VERSION)"'
+CFLAGS := -Wall -Werror -O2 -Ioverlay/engine/include -DHEATLINE_VERSION='"$(VERSION)"'
 LDLIBS := -lkernel_sys -lSceSystemService -lSceAppInstUtil -lSceNetCtl
 
 all: $(ELF)
 
 # index.html is generated from web/ (template + embedded fonts and favicon).
 # The generated file is shipped too, so python3 is only needed after editing web/.
-index.html: web/index.tpl.html web/build_page.py web/favicon.b64 web/fonts/Geist-Variable-subset.woff2 web/fonts/GeistMono-Variable-subset.woff2
+index.html: web/index.tpl.html web/build_page.py overlay/engine/include/common_fps/overlay_metric_list.h overlay/engine/include/common_fps/types.hpp overlay/engine/src/ps5/overlay_layout_state.hpp web/favicon.b64 web/fonts/Geist-Variable-subset.woff2 web/fonts/GeistMono-Variable-subset.woff2
 	python3 web/build_page.py $@.tmp && test -s $@.tmp && mv $@.tmp $@
 
 # Embed the web page. Uses xxd if available, otherwise python3; writes to a

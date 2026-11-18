@@ -199,4 +199,37 @@ void build_overlay_single_line(OverlayFrame& frame, const OverlayReadings& readi
     row.label_rgba = with_alpha(kWhite, alpha);
 }
 
+void build_overlay_metrics(OverlayFrame& frame, const OverlayReadings& readings) {
+    const OverlayConfig& cfg = frame.config;
+    if (!cfg.visible) {
+        frame.row_count = 0;
+        return;
+    }
+    const std::uint32_t alpha = static_cast<std::uint32_t>(
+        std::clamp(cfg.opacity, 1, 100) * 255 / 100);
+
+    constexpr std::uint32_t kValueColor = 0xffffffffU;  // white (number)
+
+    /* Name colours: FPS green, AVG cyan, P1 orange, P0.2 red. Numbers white.
+     * All four rows are always sent; the renderer creates one widget per
+     * frame, so they appear one at a time in order. */
+    struct Spec { const char* name; std::uint32_t color; int value; bool have; };
+    const Spec specs[4] = {
+        {"FPS",  0x4cd964ffU, readings.fps,  readings.have_fps},
+        {"AVG",  0x33d6e0ffU, readings.avg,  readings.avg >= 0},
+        {"P1",   0xffa733ffU, readings.p1,   readings.p1 >= 0},
+        {"P0.2", 0xff5a4fffU, readings.p02,  readings.p02 >= 0},
+    };
+    for (std::size_t i = 0; i < 4; ++i) {
+        OverlayRow& r = frame.rows[i];
+        r = OverlayRow{};
+        std::snprintf(r.label, kOverlayLabelSize, "%s", specs[i].name);
+        r.label_rgba = with_alpha(specs[i].color, alpha);
+        if (specs[i].have) std::snprintf(r.value, kOverlayValueSize, "%d", specs[i].value);
+        else               std::snprintf(r.value, kOverlayValueSize, "--");
+        r.value_rgba = with_alpha(kValueColor, alpha);
+    }
+    frame.row_count = 4;
+}
+
 } // namespace common_fps

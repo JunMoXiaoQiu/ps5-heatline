@@ -44,7 +44,7 @@ enum class LabelMode : std::uint8_t {
     Off,
 };
 
-inline constexpr std::size_t kMaxOverlayRows = 8;
+inline constexpr std::size_t kMaxOverlayRows = 12;
 inline constexpr std::size_t kOverlayLabelSize = 8;
 /* Wide enough for the whole single-line overlay ("FPS x  AVG x  P1 x  P0.2 x")
  * in one value widget. The renderer's TextWidget cache and the wire packet both
@@ -74,6 +74,13 @@ struct OverlayRow {
     char value[kOverlayValueSize]{};
     std::uint32_t label_rgba = 0xffffffffU;
     std::uint32_t value_rgba = 0xffffffffU;
+    /* Where to draw it, in logical pixels, when the frame is explicit_layout:
+     * the name, a fixed colon, and the number's left edge. The y is the top of
+     * the text box. The renderer only places these; the engine decides. */
+    float label_x = 0.0f;
+    float colon_x = 0.0f;
+    float number_x = 0.0f;
+    float y = 0.0f;
 };
 
 struct OverlayFrame {
@@ -83,6 +90,9 @@ struct OverlayFrame {
     OverlayConfig config{};
     Vec2 anchor{};
     std::size_t row_count = 0;
+    /* True when the rows carry their own positions (see OverlayRow). False for
+     * the older builders, whose rows the renderer still places itself. */
+    bool explicit_layout = false;
     OverlayRow rows[kMaxOverlayRows]{};
 };
 

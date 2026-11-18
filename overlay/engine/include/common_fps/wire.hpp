@@ -16,7 +16,7 @@ namespace common_fps {
 
 inline constexpr std::uint32_t kWireMagic = 0x53465043; // "CFPS"
 inline constexpr std::uint32_t kWireShutdownMagic = 0x58465043; // "CFPX"
-inline constexpr std::uint16_t kWireVersion = 2; // 2: carries the rows to draw
+inline constexpr std::uint16_t kWireVersion = 3; // 3: rows carry their own positions (explicit_layout)
 inline constexpr std::uint16_t kDefaultIpcPort = 39028;
 
 #pragma pack(push, 1)
@@ -36,13 +36,15 @@ struct WirePacket {
     float margin_y = 10.0f;
 
     std::uint8_t row_count = 0;
-    std::uint8_t reserved[3]{};
+    std::uint8_t explicit_layout = 0; // 1: rows carry label_x/colon_x/number_x/y
+    std::uint8_t reserved[2]{};
     OverlayRow rows[kMaxOverlayRows]{};
 };
 #pragma pack(pop)
 
 static_assert(sizeof(OverlayRow) ==
-    kOverlayLabelSize + kOverlayValueSize + 2 * sizeof(std::uint32_t));
+    kOverlayLabelSize + kOverlayValueSize + 2 * sizeof(std::uint32_t) +
+    4 * sizeof(float));
 static_assert(sizeof(WirePacket) == 36 + sizeof(OverlayRow) * kMaxOverlayRows);
 
 WirePacket make_wire_packet(

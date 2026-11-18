@@ -330,6 +330,15 @@ void sysinfo_start(void) {
   if(pthread_create(&th, NULL, worker, NULL) == 0) pthread_detach(th);
   if(pthread_create(&th, NULL, rate_worker, NULL) == 0) pthread_detach(th);
 }
+int
+sysinfo_rates(double *rx_bps, double *tx_bps) {
+  pthread_mutex_lock(&g_lock);
+  int ok = g_rx_bps >= 0 && g_tx_bps >= 0;
+  if(ok) { *rx_bps = g_rx_bps; *tx_bps = g_tx_bps; }
+  pthread_mutex_unlock(&g_lock);
+  return ok;
+}
+
 
 int sysinfo_json(char *buf, int size) {
   long long up = -1;

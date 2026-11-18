@@ -21,6 +21,7 @@
 #include <array>
 #include <atomic>
 #include <cstdarg>
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -145,8 +146,34 @@ struct TextWidget {
 
 TextWidget g_label_widgets[kMaxOverlayRows]{};
 TextWidget g_value_widgets[kMaxOverlayRows]{};
+/* Black drop-shadow copies drawn just behind each text widget, for readability
+ * over a game. Same Label widget type as the text (the proven, safe one). */
+TextWidget g_label_shadow_widgets[kMaxOverlayRows]{};
+TextWidget g_value_shadow_widgets[kMaxOverlayRows]{};
+/* A dedicated white ":" between the name and the number. It sits at a fixed x
+ * so adding a digit to the number never shifts it (or the name). */
+TextWidget g_colon_widgets[kMaxOverlayRows]{};
+TextWidget g_colon_shadow_widgets[kMaxOverlayRows]{};
 MonoMethod* g_find_scene_method{};
 bool g_background_render_mode = false;
+
+/* At most one new Mono widget is created per rendered packet (~1/second), so
+ * widgets appear one at a time instead of in a burst. Set at the top of each
+ * apply_packet_on_render and decremented by each creation. */
+int g_create_budget = 0;
+/* Set when a widget wanted creating but the budget was spent: the renderer then
+ * re-applies the same packet every kCreateIntervalMs until all exist, instead
+ * of waiting a second for the next packet. Still one widget per step. */
+bool g_creation_pending = false;
+std::uint64_t g_last_create_ms = 0;
+constexpr std::uint64_t kCreateIntervalMs = 16;
+
+std::uint64_t now_ms() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return static_cast<std::uint64_t>(ts.tv_sec) * 1000u +
+           static_cast<std::uint64_t>(ts.tv_nsec) / 1000000u;
+}
 
 using application_update_t = void (*)(MonoObject*);
 application_update_t g_application_update_original{};
@@ -164,6 +191,10 @@ pthread_mutex_t g_packet_lock = PTHREAD_MUTEX_INITIALIZER;
 
 constexpr const char* kLabelId = "id_commonfps_label";
 constexpr const char* kValueId = "id_commonfps_value";
+constexpr const char* kLabelShadowId = "id_commonfps_lshadow";
+constexpr const char* kValueShadowId = "id_commonfps_vshadow";
+constexpr const char* kColonId = "id_commonfps_colon";
+constexpr const char* kColonShadowId = "id_commonfps_cshadow";
 constexpr const char* kPuiDll =
     "/system_ex/common_ex/lib/Sce.PlayStation.PUI.dll";
 constexpr const char* kAppSystemDll =
@@ -655,7 +686,32 @@ MainThreadGuardResult install_main_thread_guard() {
     return MainThreadGuardResult::Installed;
 }
 
+/* The renderer lives in ShellUI and cannot create files under /data, so each
+ * log line is also sent over loopback UDP to the engine, which appends it to
+ * its own log (see start_log_relay in commonfps_ps5_main.cpp). */
+void relay_log(const char* line) {
+    static int fd = -1;
+    if (fd < 0) {
+        fd = socket(AF_INET, SOCK_DGRAM, 0);
+        if (fd < 0)
+            return;
+    }
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(39029);
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    sendto(fd, line, std::strlen(line), 0,
+           reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+}
+
 void log_line(const char* fmt, ...) {
+    char buf[240];
+    va_list ap0;
+    va_start(ap0, fmt);
+    std::vsnprintf(buf, sizeof buf, fmt, ap0);
+    va_end(ap0);
+    relay_log(buf);
+
     FILE* fp = std::fopen(
         "/data/CommonFPS_v1_2_1_shellui.log", "a");
     if (!fp)
@@ -759,6 +815,10 @@ bool refresh_game_scene() {
         for (std::size_t i = 0; i < kMaxOverlayRows; ++i) {
             release_managed_handle(g_label_widgets[i].handle);
             release_managed_handle(g_value_widgets[i].handle);
+            release_managed_handle(g_label_shadow_widgets[i].handle);
+            release_managed_handle(g_value_shadow_widgets[i].handle);
+            release_managed_handle(g_colon_widgets[i].handle);
+            release_managed_handle(g_colon_shadow_widgets[i].handle);
         }
         if (!replace_managed_handle(g_game_scene_handle, game_scene))
             return false;
@@ -1014,18 +1074,21 @@ bool apply_text_widget(
     }
 
     if (!widget) {
+        /* One new widget per frame: if the budget is spent, leave this one for
+         * a later frame (text is non-empty here, so it will retry). */
+        if (g_create_budget <= 0) {
+            g_creation_pending = true;
+            return true;
+        }
+        --g_create_budget;
+        g_last_create_ms = now_ms();
         widget = create_label(
             name, x, y, text, font, horizontal_alignment, r, g, b, a);
         if (widget && !append_child(root, widget))
             widget = nullptr;
 
-        log_line(
-            "widget create name=%s widget=%p font=%d x=%.1f y=%.1f",
-            name,
-            static_cast<void*>(widget),
-            font_size,
-            x,
-            y);
+        if (!widget)
+            log_line("widget create failed name=%s", name);
         if (!widget)
             return false;
     } else {
@@ -1092,17 +1155,84 @@ bool apply_packet_on_render(const WirePacket& packet) {
     }
 
     RowPosition positions[kMaxOverlayRows]{};
-    compute_row_positions(frame, positions);
+    if (frame.explicit_layout) {
+        /* The engine placed everything: just use its positions. */
+        for (std::size_t i = 0; i < kMaxOverlayRows; ++i) {
+            const OverlayRow& row = frame.rows[i];
+            positions[i].label_x = row.label_x;
+            positions[i].colon_x = row.colon_x;
+            positions[i].number_x = row.number_x;
+            positions[i].value_x = row.number_x;
+            positions[i].y = row.y;
+        }
+    } else {
+        compute_row_positions(frame, positions);
+    }
+
+    /* One new widget per packet (~1/second): text widgets appear one at a
+     * time instead of in a burst. */
+    g_create_budget = 1;
+    g_creation_pending = false;
 
     /* Made on demand: most packets change text only and need no font. */
     MonoObject* font = nullptr;
     bool ok = true;
+
+    /* Drop shadow: a black copy offset by a couple of pixels, drawn behind the
+     * text so it reads over any game background. Created before the coloured
+     * text (same frame order => behind it). */
+    /* 2 px at the default size 24; follows the font so a large or small
+     * overlay keeps the same look. */
+    const float kShadowOffset = std::max(
+        1.0f, static_cast<float>(frame.config.font_size) / 12.0f);
+    constexpr std::uint32_t kShadowRgba = 0x000000ffU;  // opaque black
 
     for (std::size_t i = 0; i < kMaxOverlayRows; ++i) {
         const bool shown = i < frame.row_count;
         const OverlayRow& row = frame.rows[i];
         char name[40]{};
 
+        /*
+         * "name : value" layout. When a row has both a name and a value we
+         * split it into three fixed columns: the name, a dedicated white ":",
+         * and the number. The colon and number sit at fixed x positions
+         * (colon_x / number_x) so a changing digit count never nudges the
+         * colon or the name. A bare value (no name) keeps its own column and
+         * shows no colon.
+         */
+        const bool split =
+            shown && row.label[0] != '\0' && row.value[0] != '\0';
+        const float value_x = split
+            ? positions[i].number_x
+            : positions[i].value_x;
+        const char* colon_text = split ? ":" : "";
+
+        /* Shadows first (behind). */
+        widget_name(name, sizeof(name), kLabelShadowId, i);
+        ok &= apply_text_widget(
+            root, g_label_shadow_widgets[i], name,
+            shown ? row.label : "",
+            positions[i].label_x + kShadowOffset,
+            positions[i].y + kShadowOffset,
+            kShadowRgba, frame.config.font_size, 1, font);
+
+        widget_name(name, sizeof(name), kColonShadowId, i);
+        ok &= apply_text_widget(
+            root, g_colon_shadow_widgets[i], name,
+            colon_text,
+            positions[i].colon_x + kShadowOffset,
+            positions[i].y + kShadowOffset,
+            kShadowRgba, frame.config.font_size, 0, font);
+
+        widget_name(name, sizeof(name), kValueShadowId, i);
+        ok &= apply_text_widget(
+            root, g_value_shadow_widgets[i], name,
+            shown ? row.value : "",
+            value_x + kShadowOffset,
+            positions[i].y + kShadowOffset,
+            kShadowRgba, frame.config.font_size, 0, font);
+
+        /* Coloured text on top. */
         widget_name(name, sizeof(name), kLabelId, i);
         ok &= apply_text_widget(
             root,
@@ -1116,13 +1246,28 @@ bool apply_packet_on_render(const WirePacket& packet) {
             1,
             font);
 
+        /* The colon takes the value's colour (white), kept apart from both the
+         * coloured name and the number so none of them move each other. */
+        widget_name(name, sizeof(name), kColonId, i);
+        ok &= apply_text_widget(
+            root,
+            g_colon_widgets[i],
+            name,
+            colon_text,
+            positions[i].colon_x,
+            positions[i].y,
+            row.value_rgba,
+            frame.config.font_size,
+            0,
+            font);
+
         widget_name(name, sizeof(name), kValueId, i);
         ok &= apply_text_widget(
             root,
             g_value_widgets[i],
             name,
             shown ? row.value : "",
-            positions[i].value_x,
+            value_x,
             positions[i].y,
             row.value_rgba,
             frame.config.font_size,
@@ -1138,8 +1283,13 @@ void apply_latest_state_on_render() {
         return;
 
     const std::uint64_t sequence = g_sequence.load();
-    if (sequence == g_applied_sequence.load())
-        return;
+    if (sequence == g_applied_sequence.load()) {
+        /* Same packet, but widgets are still missing: continue creating them
+         * every kCreateIntervalMs (one per step). */
+        if (!g_creation_pending ||
+            now_ms() - g_last_create_ms < kCreateIntervalMs)
+            return;
+    }
 
     WirePacket packet{};
     pthread_mutex_lock(&g_packet_lock);
@@ -1469,8 +1619,11 @@ bool initialize_receiver() {
      * the injected receiver thread resident.
      */
     timeval receive_timeout{};
-    receive_timeout.tv_sec = 2;
-    receive_timeout.tv_usec = 0;
+    /* Short timeout so the receiver thread can keep creating pending widgets
+     * between packets (legacy-background mode renders only from this thread).
+     * The 2 s "stale" rule is kept via last_packet_ms below. */
+    receive_timeout.tv_sec = 0;
+    receive_timeout.tv_usec = 5000;
     if (setsockopt(
             fd,
             SOL_SOCKET,
@@ -1505,6 +1658,7 @@ bool initialize_receiver() {
 }
 
 [[noreturn]] void run_receiver_loop() {
+    std::uint64_t last_packet_ms = now_ms();
     for (;;) {
         WirePacket packet{};
         const ssize_t n = recv(
@@ -1519,8 +1673,15 @@ bool initialize_receiver() {
                  * controller state, but never close, unhook or return.
                  * A later valid packet makes the renderer live again.
                  */
-                g_have_packet.store(false);
-                usleep(10000);
+                if (now_ms() - last_packet_ms >= 2000) {
+                    g_have_packet.store(false);
+                    usleep(10000);
+                } else if (g_background_render_mode &&
+                           g_have_packet.load() && g_creation_pending) {
+                    /* No new packet yet, but widgets are still missing:
+                     * create the next one (rate-limited inside). */
+                    apply_latest_state_on_render();
+                }
             }
             continue;
         }
@@ -1542,6 +1703,7 @@ bool initialize_receiver() {
         g_packet = packet;
         pthread_mutex_unlock(&g_packet_lock);
 
+        last_packet_ms = now_ms();
         g_sequence.store(packet.sequence);
         g_have_packet.store(true);
 

@@ -187,6 +187,29 @@ static int tjson(char *b, int size, const char *key, const struct target *t) {
                   key, t->host, t->port, last, mn, ok ? sum / ok : -1.0, mx, nj ? jit / nj : -1.0, lost, t->n);
 }
 
+/* Last value and jitter (mean change between tries) of one target, ms; -1 = none. */
+static void tstat(const struct target *t, double *last, double *jit) {
+  double prev = -1, sum = 0;
+  int nj = 0;
+  *last = -1; *jit = -1;
+  for(int k = 0; k < t->n; k++) {                  /* oldest first */
+    double v = t->v[(t->head + HIST - t->n + k) % HIST];
+    if(k == t->n - 1) *last = v;
+    if(v < 0) { prev = -1; continue; }
+    if(prev >= 0) { sum += v > prev ? v - prev : prev - v; nj++; }
+    prev = v;
+  }
+  if(nj) *jit = sum / nj;
+}
+
+int netlat_overlay(double v[4]) {
+  pthread_mutex_lock(&g_lock);
+  int on = g_on;
+  if(on) { tstat(&g_gw, &v[0], &v[1]); tstat(&g_inet, &v[2], &v[3]); }
+  pthread_mutex_unlock(&g_lock);
+  return on;
+}
+
 int netlat_json(char *buf, int size) {
   int n = 0;
   pthread_mutex_lock(&g_lock);

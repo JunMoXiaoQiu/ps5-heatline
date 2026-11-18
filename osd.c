@@ -38,6 +38,9 @@
 #include <ps5/kernel.h>
 
 #define ON_FILE   "/data/heatline/fps_overlay"
+#define LAYOUT_FILE "/data/heatline/overlay_layout"   /* the saved layout text */
+#define STYLE_FILE  "/data/heatline/overlay_style"    /* corner margin_x margin_y font opacity */
+#define LAYOUT_MAX  96                 /* longest accepted layout text */
 #define SHELL_NAME "SceShellUI"
 #define TICK_US   (1000 * 1000)        /* the overlay updates once a second */
 
@@ -178,6 +181,66 @@ thread_main(void *arg) {
   return NULL;
 }
 
+/* Layout text allowed characters: metric names (letters, digits, '.') plus the
+ * separators. Anything else is refused before it reaches the engine or a file. */
+static int
+layout_text_ok(const char *s) {
+  size_t n = strlen(s);
+  if(n == 0 || n > LAYOUT_MAX) return 0;
+  for(size_t i = 0; i < n; i++) {
+    char c = s[i];
+    if(!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+         || c == '.' || c == ',' || c == ';' || c == ' ')) return 0;
+  }
+  return 1;
+}
+
+int
+osd_set_layout(const char *spec) {
+  if(!spec || !layout_text_ok(spec)) return -1;
+  if(overlay_set_layout(spec) != 0) return -1;   /* no known metric in it */
+  char canon[LAYOUT_MAX + 8];
+  if(overlay_get_layout(canon, sizeof canon) <= 0) return -1;
+  mkdir("/data/heatline", 0755);
+  FILE *fp = fopen(LAYOUT_FILE, "w");
+  if(fp) { fputs(canon, fp); fputc('\n', fp); fclose(fp); }
+  return 0;
+}
+
+int
+osd_set_style(int corner, int mx, int my, int font, int opacity) {
+  if(overlay_set_style(corner, mx, my, font, opacity) != 0) return -1;
+  int st[5];
+  overlay_get_style(st);                 /* the clamped values actually in force */
+  mkdir("/data/heatline", 0755);
+  FILE *fp = fopen(STYLE_FILE, "w");
+  if(fp) { fprintf(fp, "%d %d %d %d %d\n", st[0], st[1], st[2], st[3], st[4]); fclose(fp); }
+  return 0;
+}
+
+/* Apply the position/size saved by an earlier session, if any. */
+static void
+style_load(void) {
+  FILE *fp = fopen(STYLE_FILE, "r");
+  if(!fp) return;
+  int c, mx, my, f, o;
+  if(fscanf(fp, "%d %d %d %d %d", &c, &mx, &my, &f, &o) == 5) overlay_set_style(c, mx, my, f, o);
+  fclose(fp);
+}
+
+/* Apply the layout saved by an earlier session, if any. */
+static void
+layout_load(void) {
+  FILE *fp = fopen(LAYOUT_FILE, "r");
+  if(!fp) return;
+  char buf[LAYOUT_MAX + 8] = "";
+  if(fgets(buf, sizeof buf, fp)) {
+    buf[strcspn(buf, "\r\n")] = '\0';
+    if(layout_text_ok(buf)) overlay_set_layout(buf);
+  }
+  fclose(fp);
+}
+
 int
 osd_get(void) {
   pthread_mutex_lock(&g_lock);
@@ -218,11 +281,35 @@ osd_start(void) {
   g_on = 0;
   snprintf(g_status, sizeof g_status, "off");
   pthread_mutex_unlock(&g_lock);
+  layout_load();                         /* the layout and style are kept across restarts */
+  style_load();
 
   pthread_t th;
   if(pthread_create(&th, NULL, thread_main, NULL) != 0) return -1;
   pthread_detach(th);
   return 0;
+}
+
+/* Read-only: concatenate the overlay engine's /data logs into buf. Temporary
+ * diagnostic for the background-box class probe. */
+int
+osd_log_dump(char *buf, size_t size) {
+  static const char *const files[] = {
+    "/data/CommonFPS_v1_2_1_shellui.log",
+    "/data/CommonFPS_v1_2_1.log",
+    NULL,
+  };
+  int n = 0;
+  for(int i = 0; files[i] && n < (int)size - 64; i++) {
+    FILE *fp = fopen(files[i], "r");
+    n += snprintf(buf + n, size - n, "===== %s =====\n", files[i]);
+    if(!fp) { n += snprintf(buf + n, size - n, "(not present)\n\n"); continue; }
+    size_t got = fread(buf + n, 1, size - n - 2, fp);
+    fclose(fp);
+    n += (int)got;
+    n += snprintf(buf + n, size - n, "\n\n");
+  }
+  return n;
 }
 
 int
@@ -249,6 +336,16 @@ osd_json(char *buf, size_t size) {
     n = jcat(buf, size, n, "%c", (*p == '"' || *p == '\\') ? ' ' : *p);
   if(shown >= 0) n = jcat(buf, size, n, "\",\"fps\":%d,", shown);
   else           n = jcat(buf, size, n, "\",\"fps\":null,");
+
+  /* the current layout text: only A-Z 0-9 . , ; (canonical form), no escaping */
+  char layout[LAYOUT_MAX + 8] = "";
+  overlay_get_layout(layout, sizeof layout);
+  n = jcat(buf, size, n, "\"layout\":\"%s\",", layout);
+
+  int st[5];
+  overlay_get_style(st);
+  n = jcat(buf, size, n, "\"style\":{\"corner\":%d,\"mx\":%d,\"my\":%d,\"font\":%d,\"opacity\":%d},",
+           st[0], st[1], st[2], st[3], st[4]);
 
   /* read-only probe of ShellUI (foundation test for the MDBG path) */
   n = jcat(buf, size, n, "\"probe\":{\"shell_pid\":%d,", (int)ppid);

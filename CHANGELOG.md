@@ -2,6 +2,25 @@
 
 All notable changes to Heatline are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-11-18
+
+### Added
+- **Fully customizable overlay.** Pick any metric, in any order, on any line. The layout is a short text: `;` starts a new line and `,` adds a metric on the same line (`FPS;AVG;P1` is a vertical list, `FPS,AVG,P1` one horizontal line, `FPS,AVG;CPUT,GPUMHZ` a grid). Up to 12 metrics at once. Set it on the **In-game overlay** page with the Vertical / Horizontal switch, the Metrics chips (click to add) or the Custom layout field; it is saved and restored after a restart. New routes: `/overlay/layout?spec=` and `/overlay/style?...`.
+- **63 overlay metrics**, every value the dashboard shows that can be drawn as a number: frame statistics (FPS, AVG, 1% / 0.2% / 0.1% / 5% / 50% / 95% / 99% percentiles and lows, frame time, stutter), temperatures (CPU, SoC, hottest SoC), CPU and GPU clocks, power (CPU, GPU, total, volts, amps), fan, system and game RAM, CPU load, per-core clock and load (8 cores each), network speed, and router / internet latency and jitter. A value that is not available shows `--`.
+- **Position and size controls**: corner (4), distance from the edge (X / Y), text size (16-40) and opacity (20-100 %), applied live and saved.
+- Aligned `NAME : value` columns with right-aligned numbers and a drop shadow, so the values stay readable over any game.
+- Metrics appear one after another within about a second (widgets are created one at a time, 16 ms apart), which keeps the renderer stable up to 72 widgets.
+- The renderer's log is relayed to the engine over loopback UDP and written to `/data/CommonFPS_v1_2_1.log` with an `R ` prefix (ShellUI cannot write files itself).
+
+### Changed
+- The overlay is no longer a single text line; it is drawn from the layout above. The default layout is `FPS;AVG;P1;P0.2`.
+- The metric list is one shared file (`overlay/engine/include/common_fps/overlay_metric_list.h`); the engine, the data feed and the web page chips are all generated from it, so adding a metric is one line.
+- Wire protocol v3 (positions are sent explicitly). The engine and the renderer must match: **fully restart the console once after updating** (rest mode is not enough), because the old renderer stays resident in the home screen until then.
+
+### Known limits
+- A very wide layout at a large size is not wrapped and can run off the screen; reduce the size or split it into lines.
+- Changing the text size allocates a new font object per size until the console restarts (small).
+
 ## [0.1.0] - 2026-11-16
 
 ### Added

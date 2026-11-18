@@ -36,6 +36,7 @@
 #include "app.h"
 #include "fps.h"
 #include "osd.h"
+#include "osd_overlay.h"
 #include "cpuload.h"
 #include "context.h"
 #include "storage.h"
@@ -46,6 +47,7 @@
 #include "ntp.h"
 #include "fan.h"
 #include "selfstat.h"
+#include "common_fps/overlay_metric_list.h"   /* OVM_* ids shared with the overlay engine */
 #include "page_html.h"
 #include "jbuf.h"
 
@@ -435,6 +437,153 @@ build_json(char *buf, size_t size, bool ext) {
 }
 
 
+/* ------------------------------------------------------------------------
+ * In-game overlay: the current value of every metric the overlay can show.
+ *
+ * Called by the overlay engine about once a second. Fills v[OVM_*] and sets
+ * have[OVM_*] for each metric read right now; the ids come from
+ * common_fps/overlay_metric_list.h, the same list the engine builds its
+ * registry from. Reads the same sources, with the same sanity checks, as
+ * build_json above. Returns 0, or -1 if `count` is not the OVM_COUNT this build
+ * knows (engine and Heatline out of step: nothing is filled).
+ * ------------------------------------------------------------------------ */
+#define OV_PUT(id, val) do { v[OVM_##id] = (double)(val); have[OVM_##id] = 1; } while(0)
+#define OV_PUT_IF(id, val) do { double x_ = (double)(val); if(x_ >= 0) OV_PUT(id, x_); } while(0)
+
+int
+overlay_collect_metrics(double *v, unsigned char *have, int count) {
+  if(count != OVM_COUNT) return -1;
+  memset(have, 0, (size_t)count);
+
+  /* game performance */
+  fps_overlay_t f;
+  if(fps_overlay_all(&f)) {
+    OV_PUT_IF(FPS, f.fps);       OV_PUT_IF(AVG, f.avg);     OV_PUT_IF(P1, f.p1);
+    OV_PUT_IF(P02, f.p02);       OV_PUT_IF(LOW1, f.low1);   OV_PUT_IF(LOW02, f.low02);
+    OV_PUT_IF(FT, f.ft);         OV_PUT_IF(FTWST, f.ft_worst);
+    OV_PUT_IF(SAVG, f.savg);     OV_PUT_IF(SMIN, f.smin);   OV_PUT_IF(SMAX, f.smax);
+    OV_PUT_IF(STUT, f.stut_pct); OV_PUT_IF(STUTN, f.stut_n);
+    OV_PUT_IF(P5, f.p5);         OV_PUT_IF(P50, f.p50);     OV_PUT_IF(P95, f.p95);
+    OV_PUT_IF(P99, f.p99);       OV_PUT_IF(P01, f.p01);     OV_PUT_IF(LOW01, f.low01);
+    OV_PUT_IF(IL1, f.il1);       OV_PUT_IF(IL02, f.il02);   OV_PUT_IF(IL01, f.il01);
+    OV_PUT_IF(ASTD, f.astd);     OV_PUT_IF(FTMIN, f.ftmin); OV_PUT_IF(FTMAX, f.ftmax);
+  }
+
+  /* temperatures: whole degrees C; 0 and very high values are "no reading" */
+  int t = 0;
+  if(sceKernelGetCpuTemperature && sceKernelGetCpuTemperature(&t) == 0 && t > 0 && t < 150) {
+    OV_PUT(CPUT, t);
+  }
+  if(sceKernelGetSocSensorTemperature) {
+    int hot = 0;
+    for(size_t i = 0; i < sizeof SAFE_CH / sizeof SAFE_CH[0]; i++) {
+      int st = 0;
+      if(sceKernelGetSocSensorTemperature(SAFE_CH[i], &st) != 0 || st <= 0 || st >= 150) continue;
+      if(SAFE_CH[i] == 0) OV_PUT(SOCT, st);       /* channel 0 = "SoC temp" */
+      else if(st > hot) hot = st;                  /* channels 1-7: hottest */
+    }
+    if(hot > 0) OV_PUT(HOTT, hot);
+  }
+
+  /* clocks: CPU = highest core clock as reported, GPU = SoC clock domain 20 */
+  int cores[64];
+  for(int c = 0; c < 64; c++) cores[c] = -1;
+  if(sceKernelGetCpuCoreClock && sceKernelGetCpuCoreClock(cores) == 0) {
+    int mhz = 0;
+    for(int c = 0; c < 16; c++) {
+      if(cores[c] <= 0 || cores[c] >= 10000) break;
+      if(cores[c] > mhz) mhz = cores[c];
+    }
+    if(mhz > 0) OV_PUT(CPUMHZ, mhz);
+  }
+  /* per core, in the dashboard's order: the API lists the 4 system cores first
+   * and the 4 game cores last, so core k+1 is entry (k + 4) % 8 of 8 */
+  {
+    int ncores = 0;
+    for(int c = 0; c < 16; c++) {
+      if(cores[c] <= 0 || cores[c] >= 10000) break;
+      ncores = c + 1;
+    }
+    if(ncores == 8) {
+      static const int CORE_MHZ_ID[8] = {OVM_C1MHZ, OVM_C2MHZ, OVM_C3MHZ, OVM_C4MHZ,
+                                          OVM_C5MHZ, OVM_C6MHZ, OVM_C7MHZ, OVM_C8MHZ};
+      for(int c = 0; c < 8; c++) {
+        v[CORE_MHZ_ID[c]] = cores[(c + 4) % 8];
+        have[CORE_MHZ_ID[c]] = 1;
+      }
+    }
+  }
+  uint32_t clk[64] = {0};
+  if(sceKernelGetSocClock && sceKernelGetSocClock(clk) == 0 && clk[20] > 0 && clk[20] < 10000) {
+    OV_PUT(GPUMHZ, clk[20]);
+  }
+
+  /* power: rail 0 = GPU, rail 1 = CPU; {mW, mV, mA} per rail, same layout check
+   * as build_json */
+  uint32_t pw[64];
+  memset(pw, 0, sizeof pw);
+  if(sceKernelGetSocPowerConsumption && sceKernelGetSocPowerConsumption(pw) == 0) {
+    bool pw_ok = true;
+    for(int r = 0; r < 8; r++) {
+      if(pw[r*3] > 400000u || pw[r*3+1] > 2500u || pw[r*3+2] > 400000u) pw_ok = false;
+    }
+    if(pw_ok) {
+      OV_PUT(GPUW, pw[0] / 1000.0);   OV_PUT(CPUW, pw[3] / 1000.0);
+      OV_PUT(TOTW, (pw[0] + pw[3]) / 1000.0);
+      OV_PUT(GVOLT, pw[1] / 1000.0);  OV_PUT(CVOLT, pw[4] / 1000.0);
+      OV_PUT(GAMP, pw[2] / 1000.0);   OV_PUT(CAMP, pw[5] / 1000.0);
+    }
+  }
+
+  /* fan: duty 0..1024 as a percentage; 0xFFFF right after rest mode = no reading */
+  uint16_t duty = 0xFFFF;
+  uint8_t scratch[64] = {0};
+  if(sceKernelGetCurrentFanDuty && sceKernelGetCurrentFanDuty(&duty, scratch) == 0 && duty <= 1024) {
+    OV_PUT(FAN, duty * 100.0 / 1024.0);
+  }
+
+  /* memory: MiB in use (system pool, game pool) as GiB */
+  if(get_page_table_stats) {
+    int tt = 0, ff = 0;
+    if(get_page_table_stats(0, 1, &tt, &ff) == 0 && tt > 0 && ff >= 0 && ff <= tt) {
+      OV_PUT(RAMS, (tt - ff) / 1024.0);
+    }
+    tt = ff = 0;
+    if(get_page_table_stats(1, 1, &tt, &ff) == 0 && tt > 0 && ff >= 0 && ff <= tt && tt - ff >= 512) {
+      OV_PUT(RAMG, (tt - ff) / 1024.0);
+    }
+  }
+
+  /* CPU load, network throughput, latency */
+  OV_PUT_IF(LOAD, cpuload_avg());
+  {
+    /* per core: the mean of its two hardware threads (core k+1 = threads 2k, 2k+1) */
+    static const int CORE_LOAD_ID[8] = {OVM_C1LOAD, OVM_C2LOAD, OVM_C3LOAD, OVM_C4LOAD,
+                                         OVM_C5LOAD, OVM_C6LOAD, OVM_C7LOAD, OVM_C8LOAD};
+    int th[CPULOAD_MAX];
+    cpuload_snapshot(th);
+    for(int c = 0; c < 8; c++) {
+      int a = th[2 * c], b = th[2 * c + 1];
+      if(a >= 0 && b >= 0) { v[CORE_LOAD_ID[c]] = (a + b) / 2.0; have[CORE_LOAD_ID[c]] = 1; }
+      else if(a >= 0 || b >= 0) { v[CORE_LOAD_ID[c]] = a >= 0 ? a : b; have[CORE_LOAD_ID[c]] = 1; }
+    }
+  }
+  double rx = 0, tx = 0;
+  if(sysinfo_rates(&rx, &tx)) {          /* bytes/s -> Mbit/s */
+    OV_PUT(RX, rx * 8 / 1e6);
+    OV_PUT(TX, tx * 8 / 1e6);
+  }
+  double lat[4];
+  if(netlat_overlay(lat)) {
+    OV_PUT_IF(LATGW, lat[0]);  OV_PUT_IF(JITGW, lat[1]);
+    OV_PUT_IF(LATNET, lat[2]); OV_PUT_IF(JITNET, lat[3]);
+  }
+  return 0;
+}
+#undef OV_PUT
+#undef OV_PUT_IF
+
+
 static void
 send_all(int fd, const char *data, size_t len) {
   while(len > 0) {
@@ -571,7 +720,7 @@ is_action(const char *path) {
   static const char *const actions[] = {
     "/fan/set", "/fan/apply", "/ntp/check", "/ntp/sync", "/ntp/auto",
     "/display/log/clear", "/refresh", "/lat/on", "/fps/more", "/fps/reset",
-    "/fps/overlay", "/quit", NULL
+    "/fps/overlay", "/overlay/layout", "/overlay/style", "/quit", NULL
   };
   for(int i = 0; actions[i]; i++) {
     if(!strcmp(path, actions[i])) return true;
@@ -681,6 +830,11 @@ handle_client(int fd) {
   if(!strcmp(path, "/api")) {
     int len = build_json(json, sizeof json, ext);
     respond(fd, "200 OK", "application/json", json, len);
+  } else if(!strcmp(path, "/overlay/log")) {   /* temporary diagnostic */
+    size_t cap = 128 * 1024;
+    char *b = malloc(cap);
+    if(b) { int len = osd_log_dump(b, cap); respond(fd, "200 OK", "text/plain; charset=utf-8", b, len); free(b); }
+    else respond(fd, "500 Internal Server Error", "text/plain", "no memory\n", 10);
   } else if(!strcmp(path, "/fan/set")) {
     const char *err = fan_set(qs);
     if(err) respond(fd, "400 Bad Request", "text/plain", err, strlen(err));
@@ -735,6 +889,41 @@ handle_client(int fd) {
   } else if(!strcmp(path, "/fps/reset")) {
     fps_reset();
     respond(fd, "200 OK", "text/plain", "ok\n", 3);
+  } else if(!strcmp(path, "/overlay/style")) {
+    /* ?corner=0..3&mx=&my=&font=&opacity= : where and how big the in-game overlay
+     * is. A value left out keeps its current setting; each is clamped. */
+    int st[5];
+    overlay_get_style(st);
+    static const char *const keys[5] = {"corner=", "mx=", "my=", "font=", "opacity="};
+    for(int k = 0; k < 5; k++) {
+      const char *p = strstr(qs, keys[k]);
+      /* only at the start of a parameter, so "mx=" never matches inside "xmx=" */
+      if(p && (p == qs || p[-1] == '&')) st[k] = atoi(p + strlen(keys[k]));
+    }
+    if(osd_set_style(st[0], st[1], st[2], st[3], st[4]) == 0) respond(fd, "200 OK", "text/plain", "ok\n", 3);
+    else respond(fd, "400 Bad Request", "text/plain", "bad corner\n", 11);
+  } else if(!strcmp(path, "/overlay/layout")) {
+    /* ?spec=FPS;AVG;P1;P0.2  (percent-encoded by the page): which metrics the
+     * in-game overlay shows and how they are arranged */
+    char spec[160] = "";
+    const char *sp = strstr(qs, "spec=");
+    if(sp) {
+      sp += 5;
+      int i = 0;
+      while(*sp && *sp != '&' && i < (int)sizeof spec - 1) {
+        if(sp[0] == '%' && isxdigit((unsigned char)sp[1]) && isxdigit((unsigned char)sp[2])) {
+          char h[3] = {sp[1], sp[2], 0};
+          spec[i++] = (char)strtol(h, NULL, 16);
+          sp += 3;
+        } else {
+          spec[i++] = *sp == '+' ? ' ' : *sp;
+          sp++;
+        }
+      }
+      spec[i] = '\0';
+    }
+    if(osd_set_layout(spec) == 0) respond(fd, "200 OK", "text/plain", "ok\n", 3);
+    else respond(fd, "400 Bad Request", "text/plain", "no known metric in that layout\n", 31);
   } else if(!strcmp(path, "/fps/overlay")) {
     osd_set(on);                        /* on-screen FPS overlay over the game */
     respond(fd, "200 OK", "text/plain", "ok\n", 3);

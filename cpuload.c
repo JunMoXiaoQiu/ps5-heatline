@@ -230,6 +230,14 @@ cpuload_json(char *buf, size_t size) {
   return n;
 }
 
+int
+cpuload_avg(void) {
+  pthread_mutex_lock(&g_lock);
+  int v = g_ok ? g_avg : -1;
+  pthread_mutex_unlock(&g_lock);
+  return v;
+}
+
 void
 cpuload_snapshot(int out[CPULOAD_MAX]) {
   pthread_mutex_lock(&g_lock);

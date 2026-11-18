@@ -37,6 +37,19 @@ int  fps_now_value(int *fps);
  * runs; a metric still filling its window is written as -1. The in-game
  * overlay draws these so it shares one source with the dashboard. */
 int  fps_overlay_metrics(int *fps, int *avg, int *p1, int *p02);
+
+/* Everything the in-game overlay can show about the running game. A field is
+ * negative when it has no value yet (a window still filling, or the "more
+ * metrics" switch off). */
+typedef struct {
+  double fps, avg, p1, p02, low1, low02;          /* real-time, 20 s window */
+  double ft, ft_worst;                            /* frame time, ms, last second */
+  double savg, smin, smax;                        /* session average / lowest / highest */
+  double stut_pct, stut_n;                        /* stuttering time %, stutters in 5 s */
+  double p5, p50, p95, p99, p01, low01;           /* "more metrics" */
+  double il1, il02, il01, astd, ftmin, ftmax;
+} fps_overlay_t;
+int  fps_overlay_all(fps_overlay_t *o);           /* 1 = a game is running, 0 = none (o untouched) */
 int  fps_dce_raw(unsigned char out[0x60]);   /* one read for the raw view; 0 ok, -errno */
 void fps_game(char *id, size_t idn, char *name_json_escaped, size_t namen);   /* "" = no game */
 int fps_ft_json(char *buf, size_t size, unsigned long long since);            /* compute the "more metrics"; saved on the console */

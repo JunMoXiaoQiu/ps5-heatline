@@ -20,6 +20,14 @@ static float decode_margin(float value) {
     return std::clamp(value, kMinMargin, kMaxMargin);
 }
 
+/* A position from the packet: NaN becomes 0, the rest is clamped to the screen
+ * (with a little room, since the text box starts above the digits). */
+static float decode_position(float value, float limit) {
+    if (value != value)
+        return 0.0f;
+    return std::clamp(value, -limit, limit);
+}
+
 static std::uint8_t encode_corner(Corner corner) {
     switch (corner) {
         case Corner::TopLeft: return 0;
@@ -58,6 +66,7 @@ WirePacket make_wire_packet(
         ? std::min(frame.row_count, kMaxOverlayRows)
         : 0;
     packet.row_count = static_cast<std::uint8_t>(rows);
+    packet.explicit_layout = frame.explicit_layout ? 1 : 0;
     for (std::size_t i = 0; i < rows; ++i)
         packet.rows[i] = frame.rows[i];
     return packet;
@@ -99,11 +108,19 @@ decode_wire_packet(const WirePacket& packet) {
     frame.anchor = compute_anchor(frame.config);
 
     frame.row_count = std::min<std::size_t>(packet.row_count, kMaxOverlayRows);
+    frame.explicit_layout = packet.explicit_layout != 0;
     for (std::size_t i = 0; i < frame.row_count; ++i) {
         frame.rows[i] = packet.rows[i];
         /* The text is handed to Mono as a C string: never trust the sender. */
         frame.rows[i].label[kOverlayLabelSize - 1] = '\0';
         frame.rows[i].value[kOverlayValueSize - 1] = '\0';
+        /* Positions are never trusted either: a bad float becomes 0 and the
+         * rest stays on the logical screen. */
+        OverlayRow& row = frame.rows[i];
+        row.label_x = decode_position(row.label_x, kLogicalWidth);
+        row.colon_x = decode_position(row.colon_x, kLogicalWidth);
+        row.number_x = decode_position(row.number_x, kLogicalWidth);
+        row.y = decode_position(row.y, kLogicalHeight);
     }
     return frame;
 }

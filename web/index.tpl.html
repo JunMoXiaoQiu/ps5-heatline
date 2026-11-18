@@ -148,6 +148,21 @@ a.brand{text-decoration:none}
 .fcwarn{margin:0;padding:10px 14px;border-radius:14px;font-size:12.5px;line-height:1.45;color:var(--txt);background:rgba(241,180,76,.12);box-shadow:inset 0 0 0 1px rgba(241,180,76,.45)}
 .fcwarn b{color:var(--warn)}
 label.fcrow{cursor:pointer}
+.mrow{align-items:flex-start;flex-direction:column}
+.mgroups{display:flex;flex-direction:column;gap:8px;width:100%}
+.mgroup{display:flex;gap:10px;align-items:flex-start}
+.mname{flex:0 0 108px;font-size:11.5px;color:var(--mut);padding-top:7px}
+.mchips{display:flex;flex-wrap:wrap;gap:6px}
+.mchip{height:28px;padding:0 10px;border:0;border-radius:8px;background:var(--bg);color:var(--mc,var(--txt));font:inherit;font-size:12px;font-weight:600;box-shadow:inset 0 0 0 1px var(--grid);cursor:pointer}
+.mchip:hover{background:var(--ctl)}
+.mchip:focus-visible{outline:2px solid #7CC4FF;outline-offset:2px}
+.osdnum{display:flex;gap:12px;align-items:center}
+.osdnum label{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--mut)}
+.osdnum input{height:32px;width:74px;padding:0 8px;border:0;border-radius:8px;background:var(--bg);color:var(--txt);font:inherit;font-size:12.5px;box-shadow:inset 0 0 0 1px var(--grid)}
+.osdnum input:focus-visible{outline:2px solid #7CC4FF;outline-offset:2px}
+.osdspec{display:flex;gap:8px;align-items:center}
+.osdspec input{height:32px;width:min(220px,40vw);padding:0 10px;border:0;border-radius:8px;background:var(--bg);color:var(--txt);font:inherit;font-size:12.5px;box-shadow:inset 0 0 0 1px var(--grid)}
+.osdspec input:focus-visible{outline:2px solid #7CC4FF;outline-offset:2px}
 .fcnum{width:64px;height:36px;border:1px solid transparent;border-radius:9px;background:var(--bg);text-align:center;font:600 15px var(--mono);padding:0 4px;-moz-appearance:textfield;appearance:textfield}
 .fcnum::-webkit-outer-spin-button,.fcnum::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .fcnum:focus{outline:none;border-color:#7CC4FF}
@@ -979,10 +994,22 @@ details.xref>summary:hover{color:var(--txt)}
 <section class="panel"><div class="phead"><h2>In-game overlay</h2><span class="ctx" id="osdBadge"><i></i><b>off</b></span><div class="grow"></div><span class="sub">session-only</span></div>
   <div class="fcform">
     <label class="fcrow"><span><b>Show overlay</b><small>draws metrics over the game itself, not only on this dashboard</small></span><span class="switch"><input type="checkbox" id="osdOn"><span></span></span></label>
-    <p class="note">Status: <b id="osdStatus">—</b></p>
+    <div class="fcrow"><span><b>Position</b><small>which corner of the screen the overlay sits in</small></span>
+      <span class="seg" id="osdCorner"><button type="button" data-c="0">Top left</button><button type="button" data-c="1">Top right</button><button type="button" data-c="2">Bottom left</button><button type="button" data-c="3">Bottom right</button></span></div>
+    <div class="fcrow"><span><b>Distance from the edge</b><small>horizontal and vertical margin, in pixels of a 1920 &times; 1080 screen</small></span>
+      <span class="osdnum"><label>X <input type="number" id="osdMx" min="0" max="__MARGIN_MAX__" step="5"></label><label>Y <input type="number" id="osdMy" min="0" max="__MARGIN_MAX__" step="5"></label></span></div>
+    <div class="fcrow"><span><b>Size and opacity</b><small>text size __FONT_MIN__&ndash;__FONT_MAX__ (24 is the default), opacity __OPAC_MIN__&ndash;__OPAC_MAX__ %</small></span>
+      <span class="osdnum"><label>Size <input type="number" id="osdFont" min="__FONT_MIN__" max="__FONT_MAX__" step="1"></label><label>Opacity <input type="number" id="osdOpac" min="__OPAC_MIN__" max="__OPAC_MAX__" step="10"></label></span></div>
+    <div class="fcrow"><span><b>Layout</b><small>how the metrics are arranged on screen</small></span>
+      <span class="seg" id="osdLayout"><button type="button" data-spec="FPS;AVG;P1;P0.2">Vertical</button><button type="button" data-spec="FPS,AVG,P1,P0.2">Horizontal</button></span></div>
+    <div class="fcrow"><span><b>Custom layout</b><small>pick metrics below &middot; <code>;</code> starts a new line, <code>,</code> adds one beside it &middot; e.g. <code>FPS,AVG;P1,P0.2</code></small></span>
+      <span class="osdspec"><input type="text" id="osdSpec" maxlength="96" spellcheck="false" autocomplete="off" placeholder="FPS;AVG;P1;P0.2"><button type="button" class="btn sm" id="osdSpecApply">Apply</button></span></div>
+    <div class="fcrow mrow"><span><b>Metrics</b><small>click one to add it to the custom layout above, then press Apply &middot; at most __OVERLAY_MAX__ on screen</small></span>
+      <div class="mgroups">__OVERLAY_METRICS__</div></div>
+    <p class="note">Status: <b id="osdStatus">—</b> <span id="osdLayoutMsg"></span></p>
   </div>
   <div class="warnbox">This is the only Heatline feature that draws into the home screen (SceShellUI): it injects a renderer into it, and a fault there can crash the home screen (a restart recovers it). It is <b>session-only</b> for safety — always off after Heatline (re)starts, it runs only once you turn it on here, and a restart removes the overlay. The metrics show while a game is in front.</div>
-  <details class="help"><summary>About</summary><dl class="about"><dt>Shows</dt><dd>Over the running game, on one line: <b>FPS</b>, <b>AVG</b>, <b>P1</b> (1% low) and <b>P0.2</b> (0.2% low). The line is colour-coded green / yellow / red by the current FPS. (Single line for now — one text element, the renderer's proven shape.)</dd><dt>How it works</dt><dd>The SimpleFPS / Common-FPS engine, vendored into Heatline, injects a Mono renderer into SceShellUI, whose layer the console composites over the game. The numbers come from Heatline's own sampler (<code>fps.c</code>) — the same source as the dashboard's Game performance panel — so the overlay and dashboard always match, and the game is never ptrace-attached.</dd><dt>1% / 0.2% low</dt><dd>Heatline's CapFrameX-style 1% and 0.2% low FPS, computed from exact per-frame times over a 20 s real-time window. They appear once the window has enough frames, and show "--" until then.</dd><dt>Off switch</dt><dd>Like SimpleFPS there is no clean mid-session off: turning it off stops it starting again, and a restart removes the overlay.</dd><dt>Credits</dt><dd>SimpleFPS (khalifa007) and Common FPS for PS5 (porhe911), GPL-3.0.</dd></dl></details>
+  <details class="help"><summary>About</summary><dl class="about"><dt>Shows</dt><dd>Over the running game: <b>FPS</b>, <b>AVG</b>, <b>P1</b> (1% low) and <b>P0.2</b> (0.2% low). Any of about 60 metrics: game performance (FPS, AVG, P1, P0.2, lows, frame time, stutter, percentiles), temperatures, clocks (overall and per core), power, fan, memory, CPU load, network speed and latency. Each has its own colour, a fixed colon and a right-aligned number so nothing shifts as values change. Arrange them with the layout controls: one per line, all on one line, or any grid. Metrics without a value right now (no game running, a sensor not read, the "more metrics" switch off) show "--". (Experimental.)</dd><dt>How it works</dt><dd>The SimpleFPS / Common-FPS engine, vendored into Heatline, injects a Mono renderer into SceShellUI, whose layer the console composites over the game. The numbers come from Heatline's own sampler (<code>fps.c</code>) — the same source as the dashboard's Game performance panel — so the overlay and dashboard always match, and the game is never ptrace-attached.</dd><dt>1% / 0.2% low</dt><dd>Heatline's CapFrameX-style 1% and 0.2% low FPS, computed from exact per-frame times over a 20 s real-time window. They appear once the window has enough frames, and show "--" until then.</dd><dt>Off switch</dt><dd>Like SimpleFPS there is no clean mid-session off: turning it off stops it starting again, and a restart removes the overlay.</dd><dt>Credits</dt><dd>SimpleFPS (khalifa007) and Common FPS for PS5 (porhe911), GPL-3.0.</dd></dl></details>
 </section>
 </div>
 </div>
@@ -2220,6 +2247,17 @@ function drawOsd(o) {
   if (!o) return;
   if (document.activeElement !== $("osdOn")) $("osdOn").checked = !!o.on;
   setText($("osdStatus"), o.status || (o.on ? "on" : "off"));
+  if (o.style) {
+    for (const b of document.querySelectorAll("#osdCorner button")) b.classList.toggle("on", +b.dataset.c === o.style.corner);
+    for (const [id, v] of [["osdMx", o.style.mx], ["osdMy", o.style.my], ["osdFont", o.style.font], ["osdOpac", o.style.opacity]])
+      if (document.activeElement !== $(id)) $(id).value = v;
+  }
+  if (o.layout) {
+    for (const b of document.querySelectorAll("#osdLayout button")) b.classList.toggle("on", b.dataset.spec === o.layout);
+    if (document.activeElement !== $("osdSpec")) $("osdSpec").value = o.layout;
+    const shown = new Set(o.layout.split(/[;,]/).map(x => x.toUpperCase()));
+    for (const c of document.querySelectorAll(".mchip")) c.style.boxShadow = shown.has(c.dataset.token.toUpperCase()) ? "inset 0 0 0 2px var(--mc)" : "";
+  }
   const b = $("osdBadge");
   if (b) {
     b.classList.toggle("game", !!o.on);
@@ -2590,6 +2628,38 @@ for (const [cls, url] of [["latSw", "/lat/on"]])
   };
 $("moreOn").onchange = e => act("/fps/more?on=" + (e.target.checked ? 1 : 0)).catch(() => {});
 $("osdOn").onchange = e => act("/fps/overlay?on=" + (e.target.checked ? 1 : 0)).catch(() => {});
+// Position and size: sent a moment after the last change, so typing "30" does not
+// first apply "3". Only what the page shows is sent; the console clamps it.
+let osdStyleTimer = null;
+function sendOsdStyle(corner) {
+  clearTimeout(osdStyleTimer);
+  osdStyleTimer = setTimeout(async () => {
+    const q = new URLSearchParams({mx: $("osdMx").value || 0, my: $("osdMy").value || 0,
+      font: $("osdFont").value || 24, opacity: $("osdOpac").value || 100});
+    if (corner != null) q.set("corner", corner);
+    const m = $("osdLayoutMsg");
+    try { const r = await act("/overlay/style?" + q); setText(m, r.ok ? "· applied" : "· not accepted"); }
+    catch (e) { setText(m, "· could not reach Heatline"); }
+    setTimeout(() => setText(m, ""), 2500);
+  }, corner != null ? 0 : 450);
+}
+for (const b of document.querySelectorAll("#osdCorner button")) b.onclick = () => sendOsdStyle(b.dataset.c);
+for (const id of ["osdMx", "osdMy", "osdFont", "osdOpac"]) $(id).oninput = () => sendOsdStyle(null);
+async function setOsdLayout(spec) {
+  const m = $("osdLayoutMsg");
+  try {
+    const r = await act("/overlay/layout?spec=" + encodeURIComponent(spec));
+    setText(m, r.ok ? "· layout applied" : "· no known metric in that layout");
+  } catch (e) { setText(m, "· could not reach Heatline"); }
+  setTimeout(() => setText(m, ""), 3000);
+}
+for (const b of document.querySelectorAll("#osdLayout button")) b.onclick = () => setOsdLayout(b.dataset.spec);
+for (const b of document.querySelectorAll(".mchip")) b.onclick = () => {
+  const i = $("osdSpec"), v = i.value.trim();
+  i.value = v ? v + (/[;,]$/.test(v) ? "" : ",") + b.dataset.token : b.dataset.token;
+};
+$("osdSpecApply").onclick = () => setOsdLayout($("osdSpec").value.trim());
+$("osdSpec").onkeydown = e => { if (e.key === "Enter") setOsdLayout($("osdSpec").value.trim()); };
 // "Reset all settings": every setting of the Settings page back to its default (the
 // table in the README). Two clicks, like a high fan threshold, so a stray click does nothing.
 let defaultsArmed = null;

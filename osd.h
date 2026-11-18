@@ -23,4 +23,7 @@
 int  osd_start(void);                 /* start the thread and apply the saved flag; 0 on success */
 void osd_set(int on);                 /* turn the overlay on/off and save the flag */
 int  osd_get(void);                   /* 1 if the saved flag is on */
+int  osd_set_style(int corner, int mx, int my, int font, int opacity); /* position/size; saved; 0 ok, -1 invalid */
+int  osd_set_layout(const char *spec); /* choose the overlay's metrics/arrangement and save it; 0 ok, -1 invalid */
 int  osd_json(char *buf, size_t size); /* append "overlay":{...}, to a JSON object (no leading comma) */
+int  osd_log_dump(char *buf, size_t size); /* read-only: overlay engine /data logs (temporary diagnostic) */

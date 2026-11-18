@@ -653,6 +653,29 @@ fps_now_value(int *fps) {
  * so the overlay shows "--". Cheap: reads the last computed values under the
  * lock, triggers no driver read. */
 int
+fps_overlay_all(fps_overlay_t *o) {
+  int have = 0;
+  pthread_mutex_lock(&g_lock);
+  if(g_game && g_fps_now >= 0) {
+    have = 1;
+    o->fps = g_fps_now;
+    o->avg = g_rt_avg; o->p1 = g_rt_p1; o->p02 = g_rt_p02;
+    o->low1 = g_rt_low1; o->low02 = g_rt_low02;
+    o->ft = g_ft_avg; o->ft_worst = g_ft_worst;
+    o->savg = g_time_us > 0 ? (double)g_frames * 1e6 / g_time_us : -1;
+    o->smin = g_min_fps; o->smax = g_max_fps;
+    o->stut_pct = g_rt_stut;
+    o->stut_n = (g_more > 0 && g_rt_stut >= 0) ? (double)g_rt_stut_n : -1;
+    o->p5 = g_x_p5; o->p50 = g_x_p50; o->p95 = g_x_p95; o->p99 = g_x_p99;
+    o->p01 = g_x_p01; o->low01 = g_x_low01;
+    o->il1 = g_x_il1; o->il02 = g_x_il02; o->il01 = g_x_il01;
+    o->astd = g_x_astd; o->ftmin = g_x_ftmin; o->ftmax = g_x_ftmax;
+  }
+  pthread_mutex_unlock(&g_lock);
+  return have;
+}
+
+int
 fps_overlay_metrics(int *fps, int *avg, int *p1, int *p02) {
   int have = 0;
   pthread_mutex_lock(&g_lock);

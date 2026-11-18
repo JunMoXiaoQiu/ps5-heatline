@@ -14,14 +14,6 @@ namespace common_fps {
 
 namespace {
 
-/*
- * Where the digits sit inside the text box, in font sizes from its top. The
- * font cannot be measured from here: estimated from a photo of the overlay.
- */
-constexpr float kTextTop = 0.42f;
-constexpr float kTextBottom = 1.14f;
-/* Step between two rows. */
-constexpr float kRowStep = 1.30f;
 constexpr float kLabelGap = 0.50f;
 /* The value column never gets narrower than three digits, so names stay put. */
 constexpr float kMinValueColumn = 1.80f;
@@ -41,7 +33,9 @@ float estimate_text_width(const char* text, int font_size) {
     float units = 0.0f;
     for (; text && *text; ++text) {
         const char c = *text;
-        if (c >= '0' && c <= '9')
+        if (c == '1')
+            units += 0.36f;  /* proportional digits: a "1" is much narrower */
+        else if (c >= '0' && c <= '9')
             units += 0.60f;
         else if (c >= 'A' && c <= 'Z')
             units += 0.70f;
@@ -82,6 +76,16 @@ void compute_row_positions(const OverlayFrame& frame, RowPosition* out) {
         : cfg.margin_x;
     const float value_edge = left + label_column + value_width;
 
+    /* Fixed colon/number columns (used by the "name : value" renderer). The
+     * colon sits at the start of the value column; the number starts a fixed
+     * gap after it and grows rightward, so digits never shift the colon. */
+    constexpr float kColonAdvance = 0.45f;  // ":" glyph + a little breathing room
+    const float colon_col = left + label_column;
+    const float number_col = colon_col + font * kColonAdvance;
+    /* Numbers right-align to a shared edge (at least three digits wide) so
+     * units line up under units; the colon stays fixed. */
+    const float number_edge = number_col + value_width;
+
     const float step = font * kRowStep;
     const float rows_above =
         count > 0 ? static_cast<float>(count - 1) : 0.0f;
@@ -96,8 +100,12 @@ void compute_row_positions(const OverlayFrame& frame, RowPosition* out) {
         row.label_x = left;
         row.y = top + static_cast<float>(i) * step;
         row.value_x = left + label_column;
+        row.colon_x = colon_col;
+        row.number_x = number_col;
         if (i >= count)
             continue;
+        row.number_x = number_edge -
+            estimate_text_width(frame.rows[i].value, cfg.font_size);
 
         if (named && frame.rows[i].label[0] == '\0') {
             /* The bare fps number lines up with the names below it. */

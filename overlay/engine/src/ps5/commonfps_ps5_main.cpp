@@ -8,8 +8,10 @@
 #include "common_fps/config.hpp"
 #include "common_fps/fps_sampler.hpp"
 #include "common_fps/layout.hpp"
+#include "common_fps/overlay_cells.hpp"
 #include "common_fps/overlay_rows.hpp"
 #include "common_fps/wire.hpp"
+#include "overlay_layout_state.hpp"
 #include "ps5_platform.hpp"
 #include "dce_fps_sampler.hpp"
 #include "shellui_injector.hpp"
@@ -21,7 +23,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <arpa/inet.h>
 #include <fcntl.h>
+#include <netinet/in.h>
+#include <pthread.h>
+#include <sys/socket.h>
 #include <optional>
 #include <string_view>
 #include <sys/types.h>
@@ -30,6 +36,10 @@
 /* Heatline's own sampler (fps.c, linked into the same payload). The overlay
  * displays these values so it and the dashboard share one metric source. */
 extern "C" int fps_overlay_metrics(int* fps, int* avg, int* p1, int* p02);
+/* Heatline's collector (see osd_overlay.h). Weak: a standalone engine build
+ * has none, and then only the FPS-engine readings exist. */
+extern "C" int overlay_collect_metrics(
+    double* value, unsigned char* have, int count) __attribute__((weak));
 
 namespace {
 
@@ -640,6 +650,16 @@ void append_yield_record() noexcept {
         overlay_config.item_count = 4;
         overlay_config.labels = common_fps::LabelMode::On;
         overlay_config.color = true;
+        /* Position and size come from Heatline's web page, not the ini. */
+        {
+            const auto style = common_fps::ps5::current_overlay_style();
+            overlay_config.corner = style.corner;
+            overlay_config.margin_x = static_cast<float>(style.margin_x);
+            overlay_config.margin_y = static_cast<float>(style.margin_y);
+            overlay_config.font_size = style.font_size;
+            overlay_config.opacity = style.opacity;
+            overlay_config.rotate_minutes = 0;   // no automatic corner rotation
+        }
         if (overlay_config.rotate_minutes > 0) {
             const std::uint64_t now_us = platform.monotonic_us();
             const std::uint64_t period_us =
@@ -890,7 +910,26 @@ void append_yield_record() noexcept {
             readings.session_seconds = session_start_us != 0
                 ? (platform.monotonic_us() - session_start_us) / 1'000'000ULL
                 : 0;
-            common_fps::build_overlay_single_line(frame, readings);
+            common_fps::MetricValues metric_values =
+                common_fps::metric_values_from_readings(readings);
+            if (overlay_collect_metrics) {
+                /* Heatline fills in every metric it can read right now (FPS,
+                 * temperatures, power, memory, network, ...). */
+                double value[common_fps::kMetricCount]{};
+                unsigned char have[common_fps::kMetricCount]{};
+                if (overlay_collect_metrics(
+                        value, have,
+                        static_cast<int>(common_fps::kMetricCount)) == 0) {
+                    for (std::size_t m = 0; m < common_fps::kMetricCount; ++m) {
+                        metric_values.have[m] = have[m] != 0;
+                        metric_values.value[m] = value[m];
+                    }
+                }
+            }
+            common_fps::build_overlay_from_spec(
+                frame,
+                common_fps::ps5::current_layout_spec(),
+                metric_values);
 
             (void)sender.send(common_fps::make_wire_packet(frame, sequence++));
         }
@@ -901,6 +940,37 @@ void append_yield_record() noexcept {
 
 } // namespace
 
+/* Renderer log relay: the renderer (inside ShellUI) cannot write /data, so it
+ * sends its log lines to this loopback UDP port and we append them here. */
+static void* log_relay_thread(void*) {
+    const int fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0)
+        return nullptr;
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(39029);
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (bind(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
+        close(fd);
+        return nullptr;
+    }
+    char buf[300];
+    for (;;) {
+        const ssize_t n = recv(fd, buf, sizeof(buf) - 1, 0);
+        if (n <= 0)
+            continue;
+        buf[n] = '\0';
+        FILE* fp = std::fopen(kControllerLog, "a");
+        if (fp) {
+            std::fprintf(fp, "R %s\n", buf);
+            std::fclose(fp);
+        }
+    }
+}
+
 extern "C" int main() {
+    pthread_t relay;
+    if (pthread_create(&relay, nullptr, log_relay_thread, nullptr) == 0)
+        pthread_detach(relay);
     run_tracked_worker();
 }
