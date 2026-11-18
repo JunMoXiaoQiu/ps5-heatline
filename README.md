@@ -1,16 +1,17 @@
 # Heatline
 
-**Version 0.0.1** · see [CHANGELOG.md](CHANGELOG.md)
+**Version 0.1.1** · see [CHANGELOG.md](CHANGELOG.md)
 
 A live hardware and game-performance monitor for a jailbroken PS5. Heatline is a payload: it runs on the console and serves a web dashboard you open in any browser on the same network, including the PS5's own browser.
 
-It shows temperatures, fan speed, power, clocks, CPU usage, RAM and storage, FPS and frame-time metrics (with CapFrameX's formulas), the display output mode, network information and latency, and it can set the fan threshold and sync the console clock.
+It shows temperatures, fan speed, power, clocks, CPU usage, RAM and storage, FPS and frame-time metrics (with CapFrameX's formulas), the display output mode, network information and latency, and it can set the fan threshold and sync the console clock. It can also draw a **fully customizable in-game overlay** (any of 63 metrics, in any order, on any line) over the running game.
 
-> Heatline only reads values the console already reports, except two settings you turn on yourself: the fan threshold and the clock sync. Use it at your own risk.
+> Heatline only reads values the console already reports, except the settings you turn on yourself: the fan threshold, the clock sync and the in-game overlay. The overlay injects code into the home-screen process (a fault there crashes the home screen, not the game); it is opt-in and always off after Heatline starts. Use it at your own risk.
 
 ## Contents
 - [Install and run](#install-and-run)
 - [Pages and panels](#pages-and-panels)
+- [In-game overlay](#in-game-overlay)
 - [Settings](#settings)
 - [History and CSV export](#history-and-csv-export)
 - [HTTP endpoints](#http-endpoints)
@@ -61,6 +62,47 @@ Always the last page in the sidebar. See [Settings](#settings).
 
 The header shows the console model, firmware, the console's date and time (in its own time zone) and the serial number (hidden except the last 4 characters; click to show). The serial number is never exported or shown in Raw data.
 
+## In-game overlay
+Draws the metrics you choose over the running game. Open the **In-game overlay** page, turn on **Show overlay**, and set it up there. It is off after every Heatline start.
+
+**After updating from an older version, fully restart the console once** (rest mode is not enough): the previous overlay renderer stays loaded in the home screen until then.
+
+### Choosing what is shown
+The layout is a short text: `;` starts a new line and `,` adds a metric on the same line. Up to **12 metrics** at once.
+
+| Layout | Result |
+|---|---|
+| `FPS;AVG;P1;P0.2` | vertical list (the default) |
+| `FPS,AVG,P1,P0.2` | one horizontal line |
+| `FPS,AVG;CPUT,GPUMHZ` | grid: two lines of two |
+
+On the page, use the Vertical / Horizontal switch, click a metric chip to add it, or type in **Custom layout** and press Apply. The layout is saved and restored after a restart. A value that is not available shows `--`.
+
+### Position and size
+Corner (4), distance from the edge (X / Y), text size (16-40) and opacity (20-100 %). Changes apply live and are saved.
+
+### Metrics (63)
+| Group | Tokens |
+|---|---|
+| Game performance | `FPS` `AVG` `P1` `P0.2` `LOW1` `LOW02` `FT` `FTWST` `SAVG` `SMIN` `SMAX` `STUT` `STUTN` |
+| More metrics | `P5` `P50` `P95` `P99` `P01` `LOW01` `IL1` `IL02` `IL01` `ASTD` `FTMIN` `FTMAX` |
+| Temperatures | `CPUT` `SOCT` `HOTT` |
+| Clocks | `CPUMHZ` `GPUMHZ` |
+| Power | `CPUW` `GPUW` `TOTW` `CVOLT` `GVOLT` `CAMP` `GAMP` |
+| Fan | `FAN` |
+| Memory | `RAMS` `RAMG` |
+| CPU load | `LOAD` |
+| Per core | `C1MHZ`..`C8MHZ` `C1LOAD`..`C8LOAD` |
+| Network | `RX` `TX` `LATGW` `LATNET` `JITGW` `JITNET` |
+
+The exact list, labels and colours are in `overlay/engine/include/common_fps/overlay_metric_list.h`; the page chips are generated from it, so adding a metric is one line there.
+
+### Limits
+- A very wide layout at a large size is not wrapped and can run off the screen: reduce the size or split it into lines.
+- Metrics appear one after another within about a second (widgets are created one at a time to keep the renderer stable).
+- Changing the text size allocates a small font object per size until the console restarts.
+- The overlay engine is a vendored SimpleFPS / Common-FPS (GPL-3.0-or-later); see `THIRD_PARTY_NOTICES.md`.
+
 ## Settings
 | Setting | Default | Saved |
 |---|---|---|
@@ -100,6 +142,9 @@ All on port 8776, GET only.
 | `/fps/ft?since=<n>` | Frame times since a cursor (frame-time graph) |
 | `/fps/more?on=0\|1` · `/fps/reset` | More metrics switch · reset the game session |
 | `/lat/on?on=0\|1` | Latency switch |
+| `/fps/overlay?on=0\|1` | In-game overlay switch |
+| `/overlay/layout?spec=<text>` | Set the overlay layout (e.g. `FPS,AVG;CPUT`) |
+| `/overlay/style?corner=&mx=&my=&font=&opacity=` | Set overlay position and size (omitted keys keep their value) |
 | `/display/read` · `/display/log` · `/display/log/clear` | Re-read the display mode · unmapped display codes seen · clear that log |
 | `/fan/set?…` · `/fan/apply` | Save the fan settings · apply them now |
 | `/ntp/check` · `/ntp/sync` · `/ntp/auto?on=0\|1` | Compare with internet time · set the clock · sync at start |
@@ -109,6 +154,7 @@ All on port 8776, GET only.
 All in `/data/heatline/`:
 - `fan_control.ini`: fan settings (same keys as ps5-fan-control).
 - `lat_on`, `fps_more`, `ntp_autosync`: present = switch on.
+- `overlay_layout`: the saved overlay layout text. `overlay_style`: corner, margins, text size and opacity.
 - `display_unknown.jsonl`: every display reading with a code Heatline cannot decode yet, with the game and settings of that moment (last 100).
 
 ## Known limits
@@ -119,6 +165,7 @@ All in `/data/heatline/`:
 - **Power, voltage and current** are the console's own figures for chip rails, never checked with a meter, and not the console's wall power.
 - **Network latency** is the time to open a TCP connection, so it reads slightly higher than a ping.
 - **No SSD read / write speed** (the counters do not exist on FW 13.60) and **no SSD temperature** (no source found). Memory clocks cannot be read.
+- **In-game overlay**: tested on FW 13.60. A layout wider than the screen is not wrapped (see [In-game overlay](#in-game-overlay)).
 - Only the PS5's own browser, desktop browsers and phones have been used to open the page.
 
 Readings that help: open Raw data in a panel's About, or `/display/log`, and send it with the console model, firmware and settings.
@@ -155,6 +202,8 @@ The page is edited in `web/index.tpl.html`. `make` runs `web/build_page.py` (emb
 | `selfstat.c` | Heatline's own consumption |
 | `raw.c` | Raw data answers |
 | `app.c` | Home-screen tile |
+| `osd.c` | Overlay switch, saved layout and style |
+| `overlay/` | Vendored overlay engine (SimpleFPS / Common-FPS) and renderer |
 
 The developer's name and link in the credits are set in one line of `web/index.tpl.html`: `const DEV={name:'…',url:'…'}`.
 
